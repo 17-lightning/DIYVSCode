@@ -1,0 +1,59 @@
+{
+  "name": "diyvscode",
+  "displayName": "diyvscode",
+  "description": "DIY your vscode without pain",
+  "publisher": "ltn",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": ["*"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "DIYVSCode.helloWorld",
+        "title": "打开DIY页面"
+      },
+      {
+        "command": "DIYVSCode.diyJump",
+        "title": "DIY跳转"
+      }
+    ],
+    "menus": {
+      "editor/context": [{
+        "when": "resourceLangId == c || resourceLangId == cpp",
+        "command": "DIYVSCode.diyJump",
+        "group": "navigation"
+      }]
+    },
+    "configuration":[
+      {
+        "title": "object",
+        "properties": {
+          "diyvscode.diyjumpconfig": {
+            "type": "string",
+            "default": "",
+            "description": "指定DIY跳转的配置文件"
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "npm run lint",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.101.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "eslint": "^9.25.1",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
