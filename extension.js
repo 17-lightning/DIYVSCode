@@ -25,6 +25,8 @@ function activate(context) {
 
 	context.subscriptions.push(vscode.commands.registerCommand('DIYVSCode.diyJump', () => {
 		const editor = vscode.window.activeTextEditor
+		const path = require('path')
+		const fs = require('fs')
 		var keyword
 		var lineid = 0
 		var line
@@ -39,12 +41,18 @@ function activate(context) {
 			vscode.window.showInformationMessage("[diy]当前没有选中目标，无法跳转");
 			return;
 		}
-		// 读取DIY Jump的配置文件
-		var workpath = vscode.workspace.getConfiguration().get('diyvscode.diyjumpconfig');
-		if (workpath == undefined || workpath.length == 0) {
-			workpath = vscode.workspace.workspaceFolders[0].uri.path + "/DIY-jump.md"; // 不太清楚vscode的工作区是个什么概念，但是仅对第一个工作区生效啊
-		} else {
-			workpath = workpath + "/DIY-jump.md";
+		// 读取DIY Jump的配置文件，优先读取当前工作区的DIY-jump.md
+		var workpath = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, "DIY-jump.md")
+		if (fs.existsSync(workpath) == false) {
+			workpath = vscode.workspace.getConfiguration().get('diyvscode.diyjumpconfig');
+			if (workpath == undefined || workpath.length == 0) {
+				vscode.window.showInformationMessage("[diy]没有可用跳转配置，无法跳转")
+				return;
+			}
+			if (fs.existsSync(workpath) == false) {
+				vscode.window.showInformationMessage("[diy]没有可用跳转配置，无法跳转")
+				return;
+			}
 		}
 		console.log("[diy]正在打开DIY跳转的配置文件: " + workpath)
 		// vscode api喜欢返回thenable，这是一种异步操作，try catch对异步不生效
@@ -60,9 +68,21 @@ function activate(context) {
 					vscode.window.showInformationMessage("[diy]跳转目标为空，跳转失败");
 					return
 				}
-				if (targetfile[0] == '.') {
-					targetfile = vscode.workspace.workspaceFolders[0].uri.path + "/" + targetfile.substring(1);
+				if (targetfile[0] == '@') {
+					targetfile = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, targetfile.substring(1));
 				}
+				if (targetfile[0] == '#') {
+					workpath = vscode.workspace.getConfiguration().get('diyvscode.diyjumptoppath')
+					if (workpath == undefined || workpath.length == 0) {
+						vscode.window.showInformationMessage("[diy]#型跳转需要配置对应路径，跳转失败")
+						return
+					}
+					targetfile = path.join(vscode.workspace.getConfiguration().get('diyvscode.diyjumptoppath'), targetfile.substring(1));
+				}
+				if (targetfile[0] == '.') {
+					targetfile = path.join(editor.document.uri.fsPath, "../" + targetfile);
+				}
+				console.log("[diy]正在打开文件:" + targetfile)
 				vscode.workspace.openTextDocument(targetfile).then(file => {
 					// 然后还要寻找说去显示哪一行
 					targetlocation = config.lineAt(lineid).text.split("|")[2]
@@ -79,11 +99,15 @@ function activate(context) {
 							if (line.includes(";")) {
 								continue
 							}
-							console.log("找到你了美味的小孩: " + line)
+							console.log("[diy]找到你了美味的小孩: " + line)
 							break
 						}
 					} else {
 						lineid = lineid - 1 // 因为你平时看见的lineid是从1开始计数的
+					}
+					if (lineid == file.lineCount) {
+						console.log("[diy]没有找到目标函数的定义，将显示首行: " + targetlocation)
+						lineid = 0
 					}
 					vscode.window.showTextDocument(file, {selection: new vscode.Range(
 						new vscode.Position(lineid, 0),

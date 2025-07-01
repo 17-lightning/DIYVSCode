@@ -2,4 +2,4 @@
 |---|---|---|---|
 read|./test1.c|my_read|
 write|D:/linux/linux-6.15.2/include/linux/netdevice.h|2414|
-clear|
+clear|@README.md|
