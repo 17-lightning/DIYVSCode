@@ -40,6 +40,16 @@
             "description": "指定DIY跳转的配置文件"
           }
         }
+      },
+      {
+        "title": "object",
+        "properties": {
+          "diyvscode.diyjumptoppath": {
+            "type": "string",
+            "default": "",
+            "description": "指定DIY跳转的起始路径"
+          }
+        }
       }
     ]
   },
