@@ -49,6 +49,7 @@ function activate(context) {
 				vscode.window.showInformationMessage("[diy]没有可用跳转配置，无法跳转")
 				return;
 			}
+			workpath = path.join(workpath, "DIY-jump.md")
 			if (fs.existsSync(workpath) == false) {
 				vscode.window.showInformationMessage("[diy]没有可用跳转配置，无法跳转")
 				return;
