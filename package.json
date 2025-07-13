@@ -21,14 +21,34 @@
       {
         "command": "DIYVSCode.diyJump",
         "title": "DIY跳转"
+      },
+      {
+        "command": "DIYVSCode.paint_it",
+        "title": "DIY绘制"
+      },
+      {
+        "command": "DIYVSCode.test_it",
+        "title": "DIY测试"
       }
     ],
     "menus": {
-      "editor/context": [{
-        "when": "resourceLangId == c || resourceLangId == cpp",
-        "command": "DIYVSCode.diyJump",
-        "group": "navigation"
-      }]
+      "editor/context": [
+        {
+          "when": "resourceLangId == c || resourceLangId == cpp",
+          "command": "DIYVSCode.diyJump",
+          "group": "navigation"
+        },
+        {
+          "when": "resourceLangId == c || resourceLangId == cpp",
+          "command": "DIYVSCode.paint_it",
+          "group": "navigation"
+        },
+        {
+          "when": "resourceLangId == c || resourceLangId == cpp",
+          "command": "DIYVSCode.test_it",
+          "group": "navigation"
+        }
+      ]
     },
     "configuration":[
       {

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${symbol}分解</title>
+    <style>
+        .function-link {
+            color: #0078d4;
+            text-decoration: none;
+            cursor: pointer;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .function-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h2>${symbol}的子函数：</h2>
+    ${context}
+    
+    <script>
+        // 获取所有函数链接元素
+        const functionLinks = document.querySelectorAll('.function-link');
+        
+        // 为每个链接添加点击事件处理
+        functionLinks.forEach(link => {
+            link.addEventListener('click', event => {
+                event.preventDefault();
+                const functionName = link.getAttribute('data-function');
+                
+                // 向VSCode插件发送消息
+                vscode.postMessage({
+                    command: 'jumpToFunction',
+                    functionName: functionName
+                });
+            });
+        });
+    </script>
+</body>
+</html>

@@ -23,6 +23,8 @@ function activate(context) {
 
 	context.subscriptions.push(disposable);
 
+	require('./ST-demo/ST.js')(context);
+
 	context.subscriptions.push(vscode.commands.registerCommand('DIYVSCode.diyJump', () => {
 		const editor = vscode.window.activeTextEditor
 		const path = require('path')
