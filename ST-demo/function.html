@@ -21,22 +21,31 @@
     ${context}
     
     <script>
-        // 获取所有函数链接元素
-        const functionLinks = document.querySelectorAll('.function-link');
-        
-        // 为每个链接添加点击事件处理
-        functionLinks.forEach(link => {
-            link.addEventListener('click', event => {
-                event.preventDefault();
-                const functionName = link.getAttribute('data-function');
-                
-                // 向VSCode插件发送消息
-                vscode.postMessage({
-                    command: 'jumpToFunction',
-                    functionName: functionName
-                });
+        try {
+            // 获取VSCODE API对象
+            const vscode = acquireVsCodeApi();
+            // 使用事件委托提高性能
+            document.body.addEventListener('click', event => {
+                if (event.target.classList.contains('function-link')) {
+                    event.preventDefault();
+                    const functionName = event.target.getAttribute('data-function');
+                    
+                    // 添加点击反馈
+                    event.target.style.backgroundColor = '#e0f0ff';
+                    setTimeout(() => {
+                        event.target.style.backgroundColor = '';
+                    }, 300);
+                    
+                    // 向VSCode插件发送消息
+                    vscode.postMessage({
+                        command: 'jumpToFunction',
+                        functionName: functionName
+                    });
+                }
             });
-        });
+        } catch (error) {
+            console.error("WebView脚本错误: " + error)
+        }
     </script>
 </body>
 </html>

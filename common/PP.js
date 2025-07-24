@@ -6,8 +6,9 @@ module.exports = function(name) {
 class PP {
     #in_note_zone = 0
     #in_note = 0
-    #debug = 0
+    #debug_mode = 0
     #g_position
+    #block_stack = {}
 
     constructor(name) {
         if (name != undefined) {
@@ -15,10 +16,14 @@ class PP {
         }
     }
 
-    debug_log(input) {
-        if (this.#debug) {
+    debug(input) {
+        if (this.#debug_mode) {
             console.log(input)
         }
+    }
+
+    containsValue(obj, value) {
+        return Object.values(obj).includes(value)
     }
 
     show_vscode_message(input) {
@@ -74,7 +79,7 @@ class PP {
             const file = vscode.window.activeTextEditor
             // 规则一：C语言的函数定义必须顶格写，前面不能有 space tab # / enter
             var line = file.document.lineAt(file.selection.start.line).text
-            if (line.charAt(0) == ' ' || line.charAt(0) == '\t' || line.charAt(0) == '#' || line.charAt(0) == '/' || line.charAt(0) == '\r' || line.charAt(0) == '\n') {
+            if (line.charAt(0) == ' ' || line.charAt(0) == '\t' || line.charAt(0) == '#' || line.charAt(0) == '/' || line.charAt(0) == '\r' || line.charAt(0) == '\n' || line.charAt(0) == '*') {
                 this.show_vscode_message("选中的目标不是一个函数定义：以非法字符开头")
                 return false
             }
@@ -104,36 +109,84 @@ class PP {
         }
     }
 
-    // 获取子函数Array，需要position指向{位置
-    // 注：识别函数的结束位置需要读取所有字符，才能跟踪到{和}的出现情况，然后还要排除注释。这可能太复杂了导致插件反应较慢，所以这里用取巧的方式，以行首的}作为函数的结束标记
-    get_child_function(input) {
+    debug_get_child_function(assert, block) {
+        var i
+        for (i = 0; i < assert.length; i++) {
+            this.debug("assert的第" + i + "位为: " + assert[i].toString())
+        }
+        for (i = 0; i < block.length; i++) {
+            this.debug("block的第" + i + "位为: " + block[i].toString())
+        }
+    }
+
+    // 该方法用于解析C语言文件，返回一个函数的所有子函数(及其分布)
+    // 使用时，input_position需要位于这个函数的`{`位置
+    // 将返回一个包含子函数的数组，当解析失败时，返回一个空数组
+    // 遇到`if`时，会录入`if X`
+    get_child_function(input_position) {
         try {
-            if (!(input instanceof vscode.Position)) {
+            if (!(input_position instanceof vscode.Position)) {
                 console.log("输入不为position，异常退出")
                 return new Array()
             }
-            if (this.get_current(input) != '{') {
-                console.log(input)
-                console.log("指向不为{，异常退出" + this.get_current(input))
+            if (this.get_current(input_position) != '{') {
+                console.log(input_position)
+                console.log("指向不为{，异常退出" + this.get_current(input_position))
                 return new Array();
             }
 
-            const file = vscode.window.activeTextEditor.document
-            var childlist = new Array()
-            var position = this.next_position(input) // 跳过这个{
-            var line = file.lineAt(position.line).text
-            var bound = 0
-            var in_big_bra = 1
-            var symbol
-            var current
-            // 还是只能一步一步去找(吗，很想走捷径但是注释这块真是太讨厌了
+            const file = vscode.window.activeTextEditor.document    // 获取文件
+            var childlist = new Array()                             // 子函数列表
+            var position = this.next_position(input_position)       // 当前指针必定位于`{`，可以直接跳过
+            var last_position = input_position                      // 用于存储上一个位置(因为get_former_symbol使用贪心算法，无法应对注释，以免有do /**/ {} ...这种情况，识别到{}却找不到前面的do)
+            var line = file.lineAt(position.line).text              // 行信息
+            var in_big_bra = 1                                      // 大括号{}
+            var in_bra = 0                                          // 小括号()
+            var symbol                                              // 符号
+            var current                                             // 当前位置
+            var temp                                                // 临时变量
+            var assert = {}                                         // 判断式
+            var block = {}                                          // 代码块
+            var count = 0                                           // 用于对`if/else/for/do/while/switch`进行计数
+            var do_while = 0                                        // 用于提示`while`你是不是`do`的附属
             while (in_big_bra != 0) {
-                current = this.get_next_skip_comment(position)
-                position = this.#g_position
-                if (current == '{') {in_big_bra = in_big_bra + 1}
-                else if (current == '}') {in_big_bra = in_big_bra - 1}
+                last_position = position                            // 当前位置
+                current = this.get_next_skip_comment(position)      // 获取当前位置的元素(会自动跳过注释)，并将#g_position移动到下一个位置
+                position = this.#g_position                         // 下一个位置
+                this.debug("正在解析(" + position.line + ":" + position.character + ")位置的字符: " + current)
+                if (current == 'd') {
+                    if (this.get_next(position) == 'o') {
+                        if (this.get_next(position) == ' ') {
+                            // 当"do ""出现时，这是一个do while的开始，将标记block
+                            childlist.push("do " + count.toString())
+                            count++
+                        }
+                    }
+                }
+                if (current == '{') {
+                    // 当{}的前方为`do`时，认为这是一个`do ... while ...`特殊控制块
+                    if (this.get_former_symbol(position) == "do") {
+                        childlist.push("do " + count.toString())
+                        count++
+                        block[in_big_bra] = "do"
+                        this.debug("识别到 do {} 代码块，block+1，当前状态为"); this.debug_get_child_function(assert, block);
+                    }
+                    in_big_bra = in_big_bra + 1
+                }
+                else if (current == '}') {
+                    in_big_bra = in_big_bra - 1
+                    if (this.containsValue(this.#block_stack, in_big_bra)) { // 识别到}时，判断她是否是一个`do{...}` `if () {...}`之类的结束
+                        if (this.#block_stack[in_big_bra] == "do") {
+                            this.debug("识别到 do {} 代码块抵达末尾")
+                            do_while += 1
+                        } else {
+                            childlist.push("0ut")
+                        }
+                        // delete this.#block_stack[in_big_bra]
+                    }
+                }
                 else if (current == '(') {
-                    this.debug_log(position.line + ":" + (position.character - 1) + "处有一个(")
+                    this.debug(position.line + ":" + (position.character - 1) + "处有一个(")
                     // 检查(的前方是否为一个符号，如果是就认为它是函数调用
                     symbol = this.get_former_symbol(position.translate(0, -1))
                     if (symbol.length == 0 || (symbol.charAt(0) >= '0' && symbol.charAt(0) <= '9')) {
@@ -152,19 +205,28 @@ class PP {
         }
     }
 
-    // 录入子函数。其中printf等简单函数需要过滤，if等分支函数需要单独制作，一些宏则应该做对应映射
+    // 录入子函数
+    // ignore_function里存储了一些应当被忽略的简单子函数，例如printf/strlen这种，通常被视为普通处理逻辑
+    // if/for/while/switch控制块也会被当做子函数，她们拥有一个序号来表示自己是第几个分支单元。在这些控制块结束的时候，会有一个finishX
+    // 但是我靠！do {...} while (...); 面前，我这里以()前方判断
     // 不过现在只实现了第一步，后面再说
     login_child_function(symbol, childlist) {
         const ignore_function = [
             "printf",
             "strlen",
         ]
+        const block_function = [
+            "if",
+            "for",
+            "while",
+            "switch"
+        ]
         // 特殊函数例如if的处理复杂且收益不高，暂时推迟到后面去做，这里只无视固定的一些函数
         var special_function = [
 
         ]
         if (ignore_function.includes(symbol)) {
-            this.debug_log(symbol + "属于可忽略函数，将不加入子函数列表")
+            this.debug(symbol + "属于可忽略函数，将不加入子函数列表")
             return
         }
         childlist.push(symbol)
@@ -208,6 +270,23 @@ class PP {
         }
     }
 
+    // 获取下一个元素，符号/标点都算
+    get_next_element(position) {
+        var current = this.get_next_skip_comment(position)
+        var result = "" 
+        while (current == ' ' || current == '\t') {
+            current = this.get_next_skip_comment(this.#g_position)
+        }
+        result = current
+        current = this.get_next(this.#g_position)
+        while (this.is_text(current)) {
+            result = result + current
+            current = this.get_next(this.#g_position)
+        }
+        this.get_former(this.#g_position)
+        return result
+    }
+
     // 注意，get_next和get_current返回的都是光标后方的字符，区别是get_current不会将g_position后移一位
     get_next(position) {
         try {
@@ -247,7 +326,8 @@ class PP {
                 result = former + result;
                 former = this.get_former(this.#g_position)
             }
-            console.log(result)
+            this.#g_position = this.next_position(this.#g_position)
+            this.debug("[get_former_symbol]: " + result)
             return result
         } catch (error) {
             this.#g_position = position
@@ -298,6 +378,24 @@ class PP {
         }
     }
 
+    // replace_variable(template: string, variables: {[key: string]: any}) {
+    replace_variable(template, variables) {
+        // 使用正则表达式匹配所有 ${variable} 格式的占位符
+        return template.replace(/\$\{([^}]+)\}/g, (match, variableName) => {
+            // 检查变量是否存在
+            if (variables.hasOwnProperty(variableName)) {
+                return variables[variableName];
+            }
+            
+            // 变量未找到，返回原始占位符（或抛出错误/返回空字符串）
+            console.warn(`模板变量 ${variableName} 未定义`);
+            return match;
+        });
+    }
+
+    jumpto_function(name) {
+        console.log("即将跳转到" + name + "的定义")
+    }
 
     test() {
         var position = vscode.window.activeTextEditor.selection.end

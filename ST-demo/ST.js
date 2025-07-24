@@ -43,8 +43,30 @@ function ST_paint_it() {
             }
         )
         // 
-        var html = PP.load_text_file("D:/PP/DIYVSCode/ST-demo/function.html")
-        
+        var html = PP.load_text_file("D:/PP/DIYVSCode/ST-demo/test.html")
+        html = PP.replace_variable(html, {
+            symbol : symbol,
+            context : context
+        })
+        console.log("正在绘制webview: " + html)
+        panel.webview.html = html
+
+        // 处理来自webView的消息
+        panel.webview.onDidReceiveMessage(
+            message => {
+                console.log("识别到消息" + message.toString())
+                switch (message.command) {
+                    case 'jumpToFunction':
+                        // 调用插件内部方法跳转到函数定义
+                        PP.jumpto_function(message.functionName);
+                        return;
+                    default:
+                        console.log("识别到未知消息" + message.command)
+                }
+            },
+            undefined,
+            context.subscriptions // 确保正确处理订阅
+        );
 
     } catch (error) {
         console.log("ST_paint_it出现故障")
@@ -56,10 +78,32 @@ function ST_test_it() {
     try {
         var position = vscode.window.activeTextEditor.selection.end
         // console.log(PP.get_child_function(position))
-        var childlist = PP.get_child_function(position)
-        for (var i = 0; i < childlist.length; i++ ) {
-            console.log("当前函数存在子函数: " + childlist[i].toString())
-        }
+        // var childlist = PP.get_child_function(position)
+        // for (var i = 0; i < childlist.length; i++ ) {
+        //     console.log("当前函数存在子函数: " + childlist[i].toString())
+        // }
+        var result = PP.get_next_element(position)
+        console.log("下一个元素是:[" + result + "]")
+        var result = PP.get_next_element(PP.get_g_position())
+        console.log("下一个元素是:[" + result + "]")
+        var result = PP.get_next_element(PP.get_g_position())
+        console.log("下一个元素是:[" + result + "]")
+        var result = PP.get_next_element(PP.get_g_position())
+        console.log("下一个元素是:[" + result + "]")
+        var result = PP.get_next_element(PP.get_g_position())
+        console.log("下一个元素是:[" + result + "]")
+        var result = PP.get_next_element(PP.get_g_position())
+        console.log("下一个元素是:[" + result + "]")
+        var result = PP.get_next_element(PP.get_g_position())
+        console.log("下一个元素是:[" + result + "]")
+        var result = PP.get_next_element(PP.get_g_position())
+        console.log("下一个元素是:[" + result + "]")
+        var result = PP.get_next_element(PP.get_g_position())
+        console.log("下一个元素是:[" + result + "]")
+        var result = PP.get_next_element(PP.get_g_position())
+        console.log("下一个元素是:[" + result + "]")
+        var result = PP.get_next_element(PP.get_g_position())
+        console.log("下一个元素是:[" + result + "]")
         // console.log("跳过注释的下一个字符是" + PP.get_next_skip_comment(position))
         
         console.log(position.line + ":" + position.character)
