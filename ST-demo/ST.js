@@ -82,33 +82,10 @@ function ST_test_it() {
         // for (var i = 0; i < childlist.length; i++ ) {
         //     console.log("当前函数存在子函数: " + childlist[i].toString())
         // }
-        var result = PP.get_next_element(position)
-        console.log("下一个元素是:[" + result + "]")
-        var result = PP.get_next_element(PP.get_g_position())
-        console.log("下一个元素是:[" + result + "]")
-        var result = PP.get_next_element(PP.get_g_position())
-        console.log("下一个元素是:[" + result + "]")
-        var result = PP.get_next_element(PP.get_g_position())
-        console.log("下一个元素是:[" + result + "]")
-        var result = PP.get_next_element(PP.get_g_position())
-        console.log("下一个元素是:[" + result + "]")
-        var result = PP.get_next_element(PP.get_g_position())
-        console.log("下一个元素是:[" + result + "]")
-        var result = PP.get_next_element(PP.get_g_position())
-        console.log("下一个元素是:[" + result + "]")
-        var result = PP.get_next_element(PP.get_g_position())
-        console.log("下一个元素是:[" + result + "]")
-        var result = PP.get_next_element(PP.get_g_position())
-        console.log("下一个元素是:[" + result + "]")
-        var result = PP.get_next_element(PP.get_g_position())
-        console.log("下一个元素是:[" + result + "]")
-        var result = PP.get_next_element(PP.get_g_position())
-        console.log("下一个元素是:[" + result + "]")
-        // console.log("跳过注释的下一个字符是" + PP.get_next_skip_comment(position))
-        
-        console.log(position.line + ":" + position.character)
-        position = PP.get_g_position()
-        console.log(position.line + ":" + position.character)
+        var list = PP.get_child_function(position)
+        for (i = 0; i < list.length; i++) {
+            console.log("list[" + i + "]:" + list[i])
+        }
     } catch (error) {
         console.log("出现故障")
         console.log(error.toString())

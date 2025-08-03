@@ -6,7 +6,7 @@ module.exports = function(name) {
 class PP {
     #in_note_zone = 0
     #in_note = 0
-    #debug_mode = 0
+    #debug_mode = 1
     #g_position
     #block_stack = {}
 
@@ -123,79 +123,112 @@ class PP {
     // 使用时，input_position需要位于这个函数的`{`位置
     // 将返回一个包含子函数的数组，当解析失败时，返回一个空数组
     // 遇到`if`时，会录入`if X`
+    // 暂时没有制作switch的分层能力
     get_child_function(input_position) {
         try {
             if (!(input_position instanceof vscode.Position)) {
                 console.log("输入不为position，异常退出")
                 return new Array()
             }
-            if (this.get_current(input_position) != '{') {
+            if (this.get_next_element(input_position) != '{') {
                 console.log(input_position)
                 console.log("指向不为{，异常退出" + this.get_current(input_position))
                 return new Array();
             }
 
-            const file = vscode.window.activeTextEditor.document    // 获取文件
+            const file = vscode.window.activeTextEditor.document    // 当前文件
             var childlist = new Array()                             // 子函数列表
-            var position = this.next_position(input_position)       // 当前指针必定位于`{`，可以直接跳过
-            var last_position = input_position                      // 用于存储上一个位置(因为get_former_symbol使用贪心算法，无法应对注释，以免有do /**/ {} ...这种情况，识别到{}却找不到前面的do)
-            var line = file.lineAt(position.line).text              // 行信息
-            var in_big_bra = 1                                      // 大括号{}
+            var position = input_position                           // 当前指针必定位于`{
+            var last_element = ""                                   // 用于存储上一个符号
+            var in_big_bra = 1                                      // 大括号{} 由于上面的get_next,已经有一个{被吃进来了，所以这里直接为1
             var in_bra = 0                                          // 小括号()
-            var symbol                                              // 符号
-            var current                                             // 当前位置
+            var current                                             // 当前元素
             var temp                                                // 临时变量
-            var assert = {}                                         // 判断式
-            var block = {}                                          // 代码块
+            var assert = []                                         // 判断式
+            var block = []                                          // 代码块
             var count = 0                                           // 用于对`if/else/for/do/while/switch`进行计数
             var do_while = 0                                        // 用于提示`while`你是不是`do`的附属
+            var end_if = 0                                          // 在if刚结束的时候做标记，此时可以识别else
+            var last = ""
             while (in_big_bra != 0) {
-                last_position = position                            // 当前位置
-                current = this.get_next_skip_comment(position)      // 获取当前位置的元素(会自动跳过注释)，并将#g_position移动到下一个位置
-                position = this.#g_position                         // 下一个位置
-                this.debug("正在解析(" + position.line + ":" + position.character + ")位置的字符: " + current)
-                if (current == 'd') {
-                    if (this.get_next(position) == 'o') {
-                        if (this.get_next(position) == ' ') {
-                            // 当"do ""出现时，这是一个do while的开始，将标记block
-                            childlist.push("do " + count.toString())
-                            count++
+                current = this.get_next_element(this.get_g_position())
+                console.log("正在处理:" + current)
+                if (current == '{') { // 左括号可以作为block的开始
+                    if (block.length != 0 && block[block.length - 1][0] == "X") {
+                        block[block.length - 1][0] = "{"
+                        block[block.length - 1][1] = in_big_bra
+                        // this.debug("[" + block[block.length - 1][2] +"]的{}区间从" + this.print_position(this.#g_position) + "开始")
+                    }
+                    in_big_bra += 1
+                } else if (current == '}') { // 右括号为对应block的结束，其中do-while类型此时会记录`do-while`，其他类型则结束并打印`0ut`
+                    in_big_bra -= 1
+                    if (block.length != 0 && block[block.length - 1][0] == '{' && block[block.length - 1][1] == in_big_bra) {
+                        if (block[block.length - 1][2] != "do-while") {
+                            childlist.push("0ut")
+                            block.pop()
+                        } else {
+                            do_while += 1
+                            block.pop() // do-while的do区域结束时无需输出0ut，因为while就是她的0ut
+                        }
+                        // this.debug("[" + block[block.length - 1][2] +"]的{}区间到" + this.print_position(this.#g_position) + "结束")
+                    }
+                } else if (current == '(') { // 左括号为assert的开始，也可以是函数
+                    if (assert.length != 0 && assert[assert.length - 1][0] == 'X') {
+                        assert[assert.length - 1][0] = '(';
+                        assert[assert.length - 1][1] = in_bra;
+                        this.debug("进入" + assert[assert.length - 1][2] + "的assert区域，当前位置为" + this.print_position(this.#g_position))
+                    } else {
+                        if (this.is_symbol(last)) {
+                            childlist.push(last)
                         }
                     }
-                }
-                if (current == '{') {
-                    // 当{}的前方为`do`时，认为这是一个`do ... while ...`特殊控制块
-                    if (this.get_former_symbol(position) == "do") {
-                        childlist.push("do " + count.toString())
-                        count++
-                        block[in_big_bra] = "do"
-                        this.debug("识别到 do {} 代码块，block+1，当前状态为"); this.debug_get_child_function(assert, block);
+                    in_bra += 1
+                } else if (current == ')') { // 右括号为assert的结束时，打印`then`，`do-while`和`switch`有特殊处理
+                    in_bra -= 1
+                    if (assert.length != 0 && assert[assert.length - 1][0] == ')' && assert[assert.length - 1][1] == in_bra) {
+                        if (assert[assert.length - 1][2] == "do-while") {
+                            childlist.push("0ut")
+                            assert.pop()
+                        } else if (assert[assert.length - 1][2] == "switch") {
+                            block.push(['X', 0, "switch"])
+                            childlist.push("then") // switch的后方应该是要用case来进行分类的，这样就不需要then了，但是目前还没做好
+                            assert.pop()
+                        } else {
+                            childlist.push("then")
+                            assert.pop();
+                        }
                     }
-                    in_big_bra = in_big_bra + 1
-                }
-                else if (current == '}') {
-                    in_big_bra = in_big_bra - 1
-                    if (this.containsValue(this.#block_stack, in_big_bra)) { // 识别到}时，判断她是否是一个`do{...}` `if () {...}`之类的结束
-                        if (this.#block_stack[in_big_bra] == "do") {
-                            this.debug("识别到 do {} 代码块抵达末尾")
+                } else if (current == 'if' || current == "for" || current == "switch") {
+                    this.debug("进入" + current + "领域")
+                    assert.push(["X", 0, current])
+                } else if (current == "do") {
+                    this.debug("进入do-while领域") 
+                    block.push(["X", 0, "do-while"])
+                    childlist.push("do-while")
+                } else if (current == "while") {
+                    if (do_while == 0) {
+                        assert.push(["X", 0, "while"])
+                    } else {
+                        assert.push(["X", 0, "do-while"])
+                    }
+                } else if (current == ";") {
+                    if (block.length != 0 && block[block.length - 1][0] == ';') {
+                        if (block[block.length - 1][2] == "do-while") {
                             do_while += 1
+                            block.pop()
                         } else {
                             childlist.push("0ut")
+                            block.pop()
                         }
-                        // delete this.#block_stack[in_big_bra]
+                    }
+                } else {
+                    if (block.length != 0) {
+                        if (block[block.length - 1][0] == "X") {
+                            block[block.length - 1][0] = ';'
+                        }
                     }
                 }
-                else if (current == '(') {
-                    this.debug(position.line + ":" + (position.character - 1) + "处有一个(")
-                    // 检查(的前方是否为一个符号，如果是就认为它是函数调用
-                    symbol = this.get_former_symbol(position.translate(0, -1))
-                    if (symbol.length == 0 || (symbol.charAt(0) >= '0' && symbol.charAt(0) <= '9')) {
-                        continue;
-                    }
-                    this.#g_position = position // 在前面的get_former_symbol后，#g_position指向符号前方越过一个字符的位置，我们把他拿回原始位置，即(后方
-                    this.login_child_function(symbol, childlist) // 录入子函数
-                    position = this.#g_position // 上面录入子函数的时候可能更新解析位置，这里进行更新
-                }
+                last = current
             }
             return childlist
         } catch (error) {
@@ -234,6 +267,7 @@ class PP {
 
     // 获取下一个字符，会自动跳过 // 和 /**/ 类的注释
     // 后续再考虑跳过编译宏
+    // 理应只返回一个字符，但在碰到CRLF文件的行末，好像就会返回"\r\n"，这个后面再处理吧 [tbd]
     get_next_skip_comment(position) {
         try {
             var file = vscode.window.activeTextEditor.document
@@ -273,17 +307,33 @@ class PP {
     // 获取下一个元素，符号/标点都算
     get_next_element(position) {
         var current = this.get_next_skip_comment(position)
-        var result = "" 
-        while (current == ' ' || current == '\t') {
+        var result = ""
+        var last = ""
+        while (current == ' ' || current == '\t' || current == '\n' || current == '\r' || current == '\r\n') {
             current = this.get_next_skip_comment(this.#g_position)
         }
-        result = current
-        current = this.get_next(this.#g_position)
-        while (this.is_text(current)) {
-            result = result + current
-            current = this.get_next(this.#g_position)
+        // this.debug("当前符号为:" + current.charCodeAt(0))
+        if (current == "\"") { // ""字符串里的所有内容认为是一个元素
+            result = current
+            last = current
+            current = this.get_next_skip_comment(this.#g_position)
+            while (current != '"' || last == '\\') {
+                result = result + current
+                last = current
+                current = this.get_next_skip_comment(this.#g_position)
+            }
+            result = result + "\""
+        } else if (current == '\\') { // 读到\时，它是一个转义符号，其下一个元素必被读取，且也只有下一个元素了
+            result = current + this.get_next_skip_comment(this.#g_position)
+        } else if (!this.is_text(current)) {
+            result = current
+        } else {
+            while (this.is_text(current)) {
+                result = result + current
+                current = this.get_next_skip_comment(this.#g_position)
+            }
+            this.get_former(this.#g_position) // 由于这里读了下一个字符判断是不是内容发现不是，要把该字符还回去
         }
-        this.get_former(this.#g_position)
         return result
     }
 
@@ -319,7 +369,7 @@ class PP {
         try {
             var former = this.get_former(position)
             var result = ""
-            while ( former === ' ') {
+            while (former === ' ') {
                 former = this.get_former(this.#g_position)
             }
             while ( this.is_text(former) ) {
@@ -395,6 +445,10 @@ class PP {
 
     jumpto_function(name) {
         console.log("即将跳转到" + name + "的定义")
+    }
+
+    print_position(position) {
+        return "{" + position.line + ":" + position.character + "}"
     }
 
     test() {
