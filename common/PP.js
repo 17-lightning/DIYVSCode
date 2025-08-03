@@ -153,6 +153,9 @@ class PP {
             while (in_big_bra != 0) {
                 current = this.get_next_element(this.get_g_position())
                 console.log("正在处理:" + current)
+                if (end_if == 1 && current != "else") {
+                    end_if = 0
+                }
                 if (current == '{') { // 左括号可以作为block的开始
                     if (block.length != 0 && block[block.length - 1][0] == "X") {
                         block[block.length - 1][0] = "{"
@@ -163,12 +166,16 @@ class PP {
                 } else if (current == '}') { // 右括号为对应block的结束，其中do-while类型此时会记录`do-while`，其他类型则结束并打印`0ut`
                     in_big_bra -= 1
                     if (block.length != 0 && block[block.length - 1][0] == '{' && block[block.length - 1][1] == in_big_bra) {
-                        if (block[block.length - 1][2] != "do-while") {
-                            childlist.push("0ut")
-                            block.pop()
-                        } else {
+                        if (block[block.length - 1][2] == "do-while") {
                             do_while += 1
                             block.pop() // do-while的do区域结束时无需输出0ut，因为while就是她的0ut
+                        } else if (block[block.length - 1][2] == "if") {
+                            end_if = 1;
+                            childlist.push("0ut")
+                            block.pop();
+                        } else {
+                            childlist.push("0ut")
+                            block.pop()
                         }
                         // this.debug("[" + block[block.length - 1][2] +"]的{}区间到" + this.print_position(this.#g_position) + "结束")
                     }
@@ -176,16 +183,17 @@ class PP {
                     if (assert.length != 0 && assert[assert.length - 1][0] == 'X') {
                         assert[assert.length - 1][0] = '(';
                         assert[assert.length - 1][1] = in_bra;
-                        this.debug("进入" + assert[assert.length - 1][2] + "的assert区域，当前位置为" + this.print_position(this.#g_position))
-                    } else {
-                        if (this.is_symbol(last)) {
+                        this.debug("进入" + assert[assert.length - 1][2] + "的assert区域，当前位置为" + this.print_position(this.#g_position) + "当前括号层级为" + in_bra)
+                    }
+                    if (this.is_symbol(last)) {
+                        if (!this.is_ignore_symbol(last)) {
                             childlist.push(last)
                         }
                     }
                     in_bra += 1
                 } else if (current == ')') { // 右括号为assert的结束时，打印`then`，`do-while`和`switch`有特殊处理
                     in_bra -= 1
-                    if (assert.length != 0 && assert[assert.length - 1][0] == ')' && assert[assert.length - 1][1] == in_bra) {
+                    if (assert.length != 0 && assert[assert.length - 1][0] == '(' && assert[assert.length - 1][1] == in_bra) {
                         if (assert[assert.length - 1][2] == "do-while") {
                             childlist.push("0ut")
                             assert.pop()
@@ -194,13 +202,24 @@ class PP {
                             childlist.push("then") // switch的后方应该是要用case来进行分类的，这样就不需要then了，但是目前还没做好
                             assert.pop()
                         } else {
+                            block.push(["X", 0, assert[assert.length - 1][2]])
                             childlist.push("then")
                             assert.pop();
                         }
                     }
-                } else if (current == 'if' || current == "for" || current == "switch") {
+                } else if (current == "for" || current == "switch") {
                     this.debug("进入" + current + "领域")
                     assert.push(["X", 0, current])
+                } else if (current == "if") {
+                    if (block.length != 0 && block[block.length - 1][2] == "else" && block[block.length - 1][0] == "X") {
+                        childlist[childlist.length - 1] = "else if"
+                        block.pop()
+                        assert.push(["X", 0, current])
+                    } else {
+                        childlist.push("if")
+                        this.debug("进入" + current + "领域")
+                        assert.push(["X", 0, current])
+                    }
                 } else if (current == "do") {
                     this.debug("进入do-while领域") 
                     block.push(["X", 0, "do-while"])
@@ -216,10 +235,20 @@ class PP {
                         if (block[block.length - 1][2] == "do-while") {
                             do_while += 1
                             block.pop()
+                        } else if (block[block.length - 1][2] == 'if') {
+                            childlist.push("0ut")
+                            block.pop()
+                            end_if = 1
                         } else {
                             childlist.push("0ut")
                             block.pop()
                         }
+                    }
+                } else if (current == "else") {
+                    if (end_if) {
+                        childlist[childlist.length - 1] = "else"
+                        end_if = 0
+                        block.push(["X", 0, "else"])
                     }
                 } else {
                     if (block.length != 0) {
@@ -449,6 +478,17 @@ class PP {
 
     print_position(position) {
         return "{" + position.line + ":" + position.character + "}"
+    }
+
+    is_ignore_symbol(symbol) {
+        var list = [
+            "if"
+        ]
+        if (list.indexOf(symbol) == -1) {
+            return false
+        } else {
+            return true
+        }
     }
 
     test() {
