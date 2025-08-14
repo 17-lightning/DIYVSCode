@@ -29,6 +29,10 @@
       {
         "command": "DIYVSCode.test_it",
         "title": "DIY测试"
+      },
+      {
+        "command": "DIYVSCode.dictionary_it",
+        "title": "DIY归档"
       }
     ],
     "menus": {
@@ -68,6 +72,16 @@
             "type": "string",
             "default": "",
             "description": "指定DIY跳转的起始路径"
+          }
+        }
+      },
+      {
+        "title": "object",
+        "properties": {
+          "diyvscode.diydictionarypath": {
+            "type": "string",
+            "default": "",
+            "description": "指定DIY字典的归档路径"
           }
         }
       }

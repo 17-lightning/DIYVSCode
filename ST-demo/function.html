@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${symbol}分解</title>
+    <title>${symbol}</title>
     <style>
         .function-link {
             color: #0078d4;
@@ -13,12 +13,88 @@
         }
         .function-link:hover {
             text-decoration: underline;
+        }.tree {
+            flex: 1;
+            overflow: auto;
+            padding: 4px 0;
+            position: relative;
+        }
+        .tree summary {
+            outline: 0;
+            padding-left: 30px;
+            list-style: none;
+            background: repeating-linear-gradient(90deg, #999 0 1px, transparent 0px 2px)
+                0px 50%/20px 1px no-repeat;
+            /* background: linear-gradient(#999,#999) 0px 50%/20px 1px no-repeat; */
+        }
+        .tree details:last-child {
+            background-size: 1px 23px;
+        }
+        .tree > details:not(:last-child) > details:last-child {
+            background-size: 1px 100%;
+        }
+        .tree details {
+            padding-left: 40px;
+            background: repeating-linear-gradient(#999 0 1px, transparent 0px 2px) 40px
+                0px/1px 100% no-repeat;
+            /* background: linear-gradient(#999, #999) 40px 0px/1px 100% no-repeat; */
+        }
+        .tree > details {
+            background: none;
+            padding-left: 0;
+        }
+        .tree > details > summary {
+            background: none;
+        }
+        .tree summary {
+            display: flex;
+            align-items: center;
+            height: 46px;
+            font-size: 15px;
+            line-height: 22px;
+            color: rgba(255, 255, 255, 0.85);
+            cursor: default;
+        }
+        .tree summary::after {
+            content: "";
+            position: absolute;
+            left: 10px;
+            right: 10px;
+            height: 38px;
+            background: #777777;
+            border-radius: 8px;
+            z-index: -1;
+            opacity: 0;
+            transition: 0.2s;
+        }
+        .tree summary:hover::after {
+            opacity: 1;
+        }
+        .tree summary:not(:only-child)::before {
+            content: "";
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+            margin-right: 8px;
+            border: 1px solid #999;
+            background: linear-gradient(#999, #999) 50%/1px 10px no-repeat,
+                linear-gradient(#999, #999) 50%/10px 1px no-repeat;
+        }
+        .tree details[open] > summary::before {
+            background: linear-gradient(#999, #999) 50%/10px 1px no-repeat;
         }
     </style>
 </head>
 <body>
-    <h2>${symbol}的子函数：</h2>
-    ${context}
+    <h2>${prototype}</h2>
+    函数路径: ${path} <br>
+    ${note}
+    <h2>关联元素</h2>
+    ${element}
+    <h2>函数结构:</h2>
+    ${struct}
+    <h2>函数内容:</h2>
+    ${content}
     
     <script>
         try {

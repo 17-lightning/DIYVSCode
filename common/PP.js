@@ -22,16 +22,15 @@ class PP {
         }
     }
 
-    containsValue(obj, value) {
+    containsValue(obj, value) { // 暂时没有应用场景？
         return Object.values(obj).includes(value)
     }
 
-    show_vscode_message(input) {
+    show_vscode_message(input) { // 在vscode窗口的右下角显示内容
         vscode.window.showInformationMessage(input)
     }
-
-    // 返回当前用户选中的内容
-    get_current_select() {
+    
+    get_current_select() { // 返回当前用户选中的内容
 	    return (vscode.window.activeTextEditor.document.getText(vscode.window.activeTextEditor.selection))
     }
 

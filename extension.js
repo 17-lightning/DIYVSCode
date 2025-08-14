@@ -7,28 +7,24 @@ const vscode = require('vscode');
 
 /**
  * @param {vscode.ExtensionContext} context
+ * DIYVscode插件总入口
  */
 function activate(context) {
-
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
 	console.log('"DIYVSCode" plugin activating...');
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with  registerCommand
-	// The commandId parameter must match the command field in package.json
+	// 这里是示范代码，用于展示如何向一个vscode命令注册其对应处理方法，先不删
 	const disposable = vscode.commands.registerCommand('DIYVSCode.helloWorld', function () {
 		vscode.window.showInformationMessage('Hello World from DIYVScode!');
 	});
+	context.subscriptions.push(disposable); // disposable需要存入subscriptions，这样她们能得到正确的清理
 
-	context.subscriptions.push(disposable);
+	require('./ST-demo/ST.js')(context); // 引入外部Js文件，会立即调用其构造方法
+	require('./Dictionary/Book.js')(context);
 
-	require('./ST-demo/ST.js')(context);
-
-	context.subscriptions.push(vscode.commands.registerCommand('DIYVSCode.diyJump', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('DIYVSCode.diyJump', () => { // DIYVSCODE插件的首个功能：DIYJUMP
 		const editor = vscode.window.activeTextEditor
 		const path = require('path')
-		const fs = require('fs')
+		const fs = require('fs') // 库来
 		var keyword
 		var lineid = 0
 		var line
@@ -43,7 +39,7 @@ function activate(context) {
 			vscode.window.showInformationMessage("[diy]当前没有选中目标，无法跳转");
 			return;
 		}
-		// 读取DIY Jump的配置文件，优先读取当前工作区的DIY-jump.md
+		// 读取DIY Jump的配置文件，优先读取当前工作区的DIY-jump.md，其次去diyjumpconfig里找DIY-jump.md
 		var workpath = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, "DIY-jump.md")
 		if (fs.existsSync(workpath) == false) {
 			workpath = vscode.workspace.getConfiguration().get('diyvscode.diyjumpconfig');

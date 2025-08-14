@@ -20,17 +20,50 @@ function ST_paint_it() {
             console.log("当前行(" + vscode.window.activeTextEditor.document.uri.fsPath + ":" + vscode.window.activeTextEditor.selection.start.line + ")不是函数定义")
             return
         }
-        // 然后去列举她的子函数
+        // 如果这是一个已被录入的子函数，直接去取她的信息
+        // 但是目前还没实现
+        // 如果这是一个新的子函数，那么将注册她
+        // 1. 录入函数原型
+        var prototype = ""
+        var position = vscode.window.activeTextEditor.selection.start
+        var current = ""
+        var content = ""
+        position = new vscode.Position(position.line, 0)
+        current = PP.get_next_element(position)
+        while (current != "{") {
+            prototype = prototype + current
+            position = PP.get_g_position()
+            current = PP.get_next_skip_comment(position)
+        }
+        // 2. 分析子函数
         var childlist = PP.get_child_function(PP.former_position(PP.get_g_position()))
-        var context = ""
+        var struct = ""
         if (childlist.length == 0) {
-            PP.show_vscode_message("当前函数" + symbol + "没有子函数")
+            struct = "当前函数" + symbol + "没有子函数"
         } else {
-            // 为每个子函数生成可点击链接
+            // 绘制
+            struct += '<div class="tree" id="tree">\n<details>\n<summary class="tree-item">' + symbol + "</summary>\n"
             for (var i = 0; i < childlist.length; i++) {
                 // context = context + childlist[i] + "<br>"
-                context += `<a href="#" class="function-link" data-function="${childlist[i]}">${childlist[i]}</a><br>`
+                if (childlist[i] != '0ut') {
+                    struct += '<details> <summary class="tree-item">' + childlist[i] + "</summary>"
+                }
+                if (childlist[i] == "if" || childlist[i] == "while" || childlist[i] == "do-while" || childlist[i] == "switch" || childlist[i] == "for") {
+                    struct += "\n"
+                } else if (childlist[i] == "0ut") {
+                    struct += '</details>\n</details>'
+                } else {
+                    struct += '</details>\n'
+                }
+                // struct += `<a href="#" class="function-link" data-function="${childlist[i]}">${childlist[i]}</a><br>`
             }
+            struct += "</details>\n</div>"
+        }
+        // 3. 录入函数内容 (以行首的}作为函数结束的标记，不遵守这种写法的自求多福吧)
+        var path = vscode.window.activeTextEditor.document.uri.fsPath
+        while (vscode.window.activeTextEditor.document.lineAt(position.line).text[0] != '{') {
+            content += vscode.window.activeTextEditor.document.lineAt(position.line).text;
+            position = position.translate(1, 0)
         }
         // 创建WebView
         const panel = vscode.window.createWebviewPanel(
@@ -43,10 +76,13 @@ function ST_paint_it() {
             }
         )
         // 
-        var html = PP.load_text_file("D:/PP/DIYVSCode/ST-demo/test.html")
+        var html = PP.load_text_file("D:/PP/DIYVSCode/ST-demo/function.html")
         html = PP.replace_variable(html, {
             symbol : symbol,
-            context : context
+            struct : struct,
+            prototype : prototype,
+            content : content,
+            path : path
         })
         console.log("正在绘制webview: " + html)
         panel.webview.html = html
@@ -65,7 +101,7 @@ function ST_paint_it() {
                 }
             },
             undefined,
-            context.subscriptions // 确保正确处理订阅
+            content.subscriptions // 确保正确处理订阅
         );
 
     } catch (error) {
@@ -76,16 +112,7 @@ function ST_paint_it() {
 
 function ST_test_it() {
     try {
-        var position = vscode.window.activeTextEditor.selection.end
-        // console.log(PP.get_child_function(position))
-        // var childlist = PP.get_child_function(position)
-        // for (var i = 0; i < childlist.length; i++ ) {
-        //     console.log("当前函数存在子函数: " + childlist[i].toString())
-        // }
-        var list = PP.get_child_function(position)
-        for (i = 0; i < list.length; i++) {
-            console.log("list[" + i + "]:" + list[i])
-        }
+        
     } catch (error) {
         console.log("出现故障")
         console.log(error.toString())
