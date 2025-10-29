@@ -97,3 +97,47 @@ export function load_text_file(filepath : string) : string {
         return "";
     }
 }
+
+/**
+ * 获取当前文件的相对路径
+ */
+export function get_current_filepath() : string {
+    const activeEditor = vscode.window.activeTextEditor;
+    if (!activeEditor) return "";
+    
+    const documentUri = activeEditor.document.uri;
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(documentUri);
+    if (!workspaceFolder) return "";
+    
+    return path.relative(workspaceFolder.uri.fsPath, documentUri.fsPath);
+}
+
+/**
+ * 获取当前选中的内容
+ */
+export function get_current_keyword() : string {
+    try {
+        return vscode.window.activeTextEditor!.document.getText(vscode.window.activeTextEditor!.selection);
+    } catch (error) {
+        return "";
+    }
+}
+
+export function replace_variable(input: string, variables: Map<string, string>): string {
+    try {
+        // 修正1：移除正则表达式的引号
+        return input.replace(/\$\{([^}]+)\}/g, (match, variableName) => {
+            // 修正2：使用 Map 的正确方法
+            if (variables.has(variableName)) {
+                return variables.get(variableName) || "";
+            }
+            // // 变量未找到时返回空
+            // return "";
+            // 变量未找到时不进行处理
+            return match;
+        });
+    } catch (error) {
+        console.log(error);
+        return "";
+    }
+}

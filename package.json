@@ -11,27 +11,15 @@
     "Other"
   ],
   "activationEvents": ["*"],
-  "main": "./extension.js",
+  "main": "./out/DIY-TOP.js",
   "contributes": {
     "commands": [
-      {
-        "command": "DIYVSCode.helloWorld",
-        "title": "打开DIY页面"
-      },
       {
         "command": "DIYVSCode.diyJump",
         "title": "DIY跳转"
       },
       {
-        "command": "DIYVSCode.paint_it",
-        "title": "DIY绘制"
-      },
-      {
-        "command": "DIYVSCode.test_it",
-        "title": "DIY测试"
-      },
-      {
-        "command": "DIYVSCode.dictionary_it",
+        "command": "DIYVSCode.diybook",
         "title": "DIY归档"
       }
     ],
@@ -44,12 +32,7 @@
         },
         {
           "when": "resourceLangId == c || resourceLangId == cpp",
-          "command": "DIYVSCode.paint_it",
-          "group": "navigation"
-        },
-        {
-          "when": "resourceLangId == c || resourceLangId == cpp",
-          "command": "DIYVSCode.test_it",
+          "command": "DIYVSCode.diybook",
           "group": "navigation"
         }
       ]
@@ -58,10 +41,10 @@
       {
         "title": "object",
         "properties": {
-          "diyvscode.diyjumpconfig": {
+          "diyvscode.DiyJumpRules": {
             "type": "string",
             "default": "",
-            "description": "指定DIY跳转的配置文件"
+            "description": "你可以指定DIY跳转使用哪里的配置文件，但当前工作区下的规则总是优先生效"
           }
         }
       },
@@ -78,19 +61,44 @@
       {
         "title": "object",
         "properties": {
-          "diyvscode.diydictionarypath": {
+          "diyvscode.DIYLibrary": {
             "type": "string",
             "default": "",
             "description": "指定DIY字典的归档路径"
           }
         }
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "DIY-Dictionary",
+          "title": "DIY字典",
+          "icon": "Dictionary/svg.svg"
+        }
+      ]
+    },
+    "views": {
+      "DIY-Dictionary": [
+        {
+          "id": "part1",
+          "name": "part_one",
+          "icon": "Dictionary/svg.svg"
+        },
+        {
+          "id": "part2",
+          "name": "part_two"
+        }
+      ]
+    }
   },
   "scripts": {
     "lint": "eslint .",
     "pretest": "npm run lint",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
     "@types/vscode": "^1.101.0",

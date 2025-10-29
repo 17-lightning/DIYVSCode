@@ -8,9 +8,9 @@ export function activate(context : vscode.ExtensionContext) {
     let disposable = vscode.commands.registerCommand('DIYVSCode.diyJump', DIY_Jump); // 注册DIY跳转命令
     context.subscriptions.push(disposable);
 
-    disposable = vscode.commands.registerCommand('DIYVSCode.diybook', DIY_book);
+    disposable = vscode.commands.registerCommand('DIYVSCode.diybook', () => DIY_book(context));
     context.subscriptions.push(disposable);
-    
+
     book_test(context);
     return;
 }

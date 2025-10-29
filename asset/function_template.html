@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>${name}</title>
+    </head>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #ddd;
+            background-color: #333;
+        }
+
+        h1 {
+            color: #ddd
+        }
+
+        h2 {
+            color: #ddd
+        }
+
+        h3 {
+            color: #ddd
+        }
+
+        .note-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        #note-area {
+            margin-bottom: 15px;
+        }
+        
+        #note {
+            display: block;
+            width: 95%;
+            min-height: 100px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color:#333;
+            background-color: #f8f9fa;
+            white-space: pre-wrap; /* 关键属性：保留换行和空格 */
+            overflow-x: auto;
+            line-height: 1.5;
+        }
+        
+        textarea#note {
+            resize: vertical;
+            background-color: white;
+        }
+    </style>
+    <body>
+        <h2>${name}</h2>
+        <div class="note-container">
+            <font size="4" color="333333">说明</font>
+            <div id="note-area"> <!-- 代码块将在这里显示或编辑 -->
+                <code id="note">${note}</code>
+            </div>
+            <button type="button" id="note-edit">编辑</button>
+        </div>
+        <br>
+        <h3>所属文件</h3>
+        <note>${file}</note>
+        <h3>函数内容</h3>
+        <code>
+${code}
+        </code>
+        <h3>子函数开发中</h3>
+        <h3>父函数开发中</h3>
+
+    </body>
+    <script>
+        const vscode = acquireVsCodeApi();
+        const noteArea = document.getElementById('note-area');
+        const noteEditBtn = document.getElementById('note-edit');
+        // 当前是否处于编辑模式
+        let noteIsEditing = false;
+        // 将原始注释修改为显示型
+        function noteTurntoView() {
+            var currentNote = document.getElementById('note').textContent;
+            noteArea.innerHTML = `<code id='note'>${currentNote}</code>`;
+            noteIsEditing = false;
+        }
+        // 切换到编辑模式
+        function noteSwitchToEdit() {
+            var currentNote = document.getElementById('note').textContent;
+            noteArea.innerHTML = `<textarea id="note">${currentNote}</textarea>`;
+            noteEditBtn.textContent = '保存';
+            noteEditBtn.classList.add('save');
+            noteIsEditing = true;
+            document.getElementById('note').focus();
+        }
+        // 切换到查看模式
+        function noteSwitchToView() {
+            var currentNote = document.getElementById('note').value;
+            noteArea.innerHTML = `<code id='note'>${currentNote}</code>`;
+            noteEditBtn.textContent = '编辑';
+            noteEditBtn.classList.remove('save');
+            noteIsEditing = false;
+            vscode.postMessage({"cmd":"change-note", "name":"${document}", "note":currentNote});
+        }
+        // Note按钮事件处理
+        noteEditBtn.addEventListener('click', function() {
+            if (noteIsEditing) {
+                noteSwitchToView();
+            } else {
+                noteSwitchToEdit();
+            }
+        })
+        noteTurntoView();
+
+    </script>
+</html>
