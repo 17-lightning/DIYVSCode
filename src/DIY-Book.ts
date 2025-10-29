@@ -108,6 +108,37 @@ function DIY_log_in_filepath(document : vscode.TextDocument) : string {
     return "unknown";
 }
 
+// 获取函数内容，预期当前已选中了函数名称，会向后寻找{，并且认为从{到}中间的为函数内容
+// 注意函数起始{这一行的后面不能有内容，函数结束}标记必须放在行首
+function DIY_log_in_content() : string {
+    try {
+        let content = "";
+        let lineid = vscode.window.activeTextEditor!.selection.end.line;
+        let line = vscode.window.activeTextEditor!.document.lineAt(lineid).text;
+        while (!line.includes("{")) {
+            lineid = lineid + 1;
+            line = vscode.window.activeTextEditor!.document.lineAt(lineid).text;
+        }
+        if (line.substring(line.search("{") + 1).length) {
+            content = line.substring(line.search("{") + 1) + "\n";
+        }
+        lineid = lineid + 1;
+        line = vscode.window.activeTextEditor!.document.lineAt(lineid).text;
+        while (line[0] != '}') {
+            content = content + line + "\n";
+            lineid = lineid + 1;
+            line = vscode.window.activeTextEditor!.document.lineAt(lineid).text;
+        }
+        // 移除最后一个\n
+        content = content.substring(0, content.length - 1);
+        console.log("[ltn] code content is " + content);
+        return content;
+    } catch (error) {
+        console.log(error);
+    }
+    return "";
+}
+
 async function DIY_show_function_document(context : vscode.ExtensionContext, target : string) {
     try {
         let lineid : number = 0;
@@ -119,6 +150,7 @@ async function DIY_show_function_document(context : vscode.ExtensionContext, tar
         map.set("name", document.lineAt(0).text.substring(2));
         map.set("file", DIY_log_in_filepath(document));
         map.set("note", DIY_log_in_note(document));
+        map.set("code", DIY_log_in_content());
         let filepath = map.get("file");
         filepath = filepath!.replace(new RegExp("\\\\", "g"), "--");
         filepath = filepath.replace(new RegExp("/", "g"), "--");

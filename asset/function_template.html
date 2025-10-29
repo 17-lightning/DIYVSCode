@@ -58,6 +58,30 @@
             resize: vertical;
             background-color: white;
         }
+
+        .code-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        #content {
+            display: block;
+            width: 95%;
+            min-height: 100px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color:#333;
+            background-color: #f8f9fa;
+            white-space: pre-wrap; /* 关键属性：保留换行和空格 */
+            overflow-x: auto;
+            line-height: 1.5;
+        }
     </style>
     <body>
         <h2>${name}</h2>
@@ -72,9 +96,9 @@
         <h3>所属文件</h3>
         <note>${file}</note>
         <h3>函数内容</h3>
-        <code>
-${code}
-        </code>
+        <div class="code-container">
+            <code id="content">${code}</code>
+        </div>
         <h3>子函数开发中</h3>
         <h3>父函数开发中</h3>
 
