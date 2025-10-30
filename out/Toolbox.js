@@ -102,7 +102,7 @@ function get_workspace_path() {
     return workspace.uri.fsPath;
 }
 function get_vscode_config(key) {
-    let result = vscode.workspace.getConfiguration().get('diyvscode.DiyLibrary');
+    let result = vscode.workspace.getConfiguration().get(key);
     if (result == undefined) {
         return "";
     }

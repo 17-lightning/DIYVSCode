@@ -78,7 +78,7 @@ export function get_workspace_path() : string {
 }
 
 export function get_vscode_config(key : string) : string {
-    let result = vscode.workspace.getConfiguration().get<string>('diyvscode.DiyLibrary');
+    let result = vscode.workspace.getConfiguration().get<string>(key);
     if (result == undefined) {
         return "";
     }

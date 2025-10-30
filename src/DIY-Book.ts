@@ -139,6 +139,38 @@ function DIY_log_in_content() : string {
     return "";
 }
 
+// 获取关联项，关联项会在对应段落下以[名称](./目标md)存在
+function DIY_log_in_relation(document : vscode.TextDocument, type : string) : string {
+    try {
+        let lineid = 1; // 第一行是标题，所以可以从第二行开始
+        let line = document.lineAt(lineid).text;
+        let key;
+        let value;
+        let result = "";
+        while (line != ("# " + type + "\n")) {
+            lineid = lineid + 1;
+            line = document.lineAt(lineid).text;
+        }
+        if (lineid >= document.lineCount) {
+            Box.debug("未能找到[" + type + "]型关联项");
+            return "";
+        }
+        lineid = lineid + 1;
+        line = document.lineAt(lineid).text;
+        while (lineid < document.lineCount - 1 && line[0] != '#') {
+            key = line.substring(1, line.search("]"));
+            value = line.substring(line.search("]"), line.length - 1);
+            result = result + "\n" + key + "|" + value;
+            lineid = lineid + 1;
+            line = document.lineAt(lineid).text;
+        }
+        return result;
+    } catch (error) {
+        console.log(error);
+    }
+    return "";
+}
+
 async function DIY_show_function_document(context : vscode.ExtensionContext, target : string) {
     try {
         let lineid : number = 0;
@@ -157,6 +189,7 @@ async function DIY_show_function_document(context : vscode.ExtensionContext, tar
         filepath = path.join(await get_DIY_library(), filepath) + "+" + map.get("name") +".md";
         filepath = filepath.replace(new RegExp("\\\\", "g"), "\\\\\\\\");
         map.set("document", filepath);
+        map.set("fullname", filepath.substring(filepath.lastIndexOf("\\\\") + 1));
         console.log("document is " + map.get("document"));
 
         html = Box.replace_variable(html, map);

@@ -84,7 +84,7 @@
         }
     </style>
     <body>
-        <h2>${name}</h2>
+        <h2>${name}&emsp;<button type="button" id="copy-me">拷贝</button></h2>
         <div class="note-container">
             <font size="4" color="333333">说明</font>
             <div id="note-area"> <!-- 代码块将在这里显示或编辑 -->
@@ -95,12 +95,15 @@
         <br>
         <h3>所属文件</h3>
         <note>${file}</note>
+        <h3>所属模块</h3>
+        <note>${module}</note>
+        <h3>子函数&emsp;<button type="button" id="search-child">自动搜寻子函数 - 施工中</button></h3>
+        <h3>父函数&emsp;<button type="button" id="search-parent">自动搜寻父函数 - 施工中</button></h3>
+        <h3>关联项</h3>
         <h3>函数内容</h3>
         <div class="code-container">
             <code id="content">${code}</code>
         </div>
-        <h3>子函数开发中</h3>
-        <h3>父函数开发中</h3>
 
     </body>
     <script>
@@ -133,6 +136,11 @@
             noteIsEditing = false;
             vscode.postMessage({"cmd":"change-note", "name":"${document}", "note":currentNote});
         }
+        // 拷贝当前文档名
+        function copy_my_fullname() {
+            navigator.clipboard.writeText("${fullname}");
+        }
+        document.getElementById('copy-me').addEventListener('click', copy_my_fullname);
         // Note按钮事件处理
         noteEditBtn.addEventListener('click', function() {
             if (noteIsEditing) {

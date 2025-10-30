@@ -123,6 +123,69 @@ function DIY_log_in_filepath(document) {
     }
     return "unknown";
 }
+// 获取函数内容，预期当前已选中了函数名称，会向后寻找{，并且认为从{到}中间的为函数内容
+// 注意函数起始{这一行的后面不能有内容，函数结束}标记必须放在行首
+function DIY_log_in_content() {
+    try {
+        let content = "";
+        let lineid = vscode.window.activeTextEditor.selection.end.line;
+        let line = vscode.window.activeTextEditor.document.lineAt(lineid).text;
+        while (!line.includes("{")) {
+            lineid = lineid + 1;
+            line = vscode.window.activeTextEditor.document.lineAt(lineid).text;
+        }
+        if (line.substring(line.search("{") + 1).length) {
+            content = line.substring(line.search("{") + 1) + "\n";
+        }
+        lineid = lineid + 1;
+        line = vscode.window.activeTextEditor.document.lineAt(lineid).text;
+        while (line[0] != '}') {
+            content = content + line + "\n";
+            lineid = lineid + 1;
+            line = vscode.window.activeTextEditor.document.lineAt(lineid).text;
+        }
+        // 移除最后一个\n
+        content = content.substring(0, content.length - 1);
+        console.log("[ltn] code content is " + content);
+        return content;
+    }
+    catch (error) {
+        console.log(error);
+    }
+    return "";
+}
+// 获取关联项，关联项会在对应段落下以[名称](./目标md)存在
+function DIY_log_in_relation(document, type) {
+    try {
+        let lineid = 1; // 第一行是标题，所以可以从第二行开始
+        let line = document.lineAt(lineid).text;
+        let key;
+        let value;
+        let result = "";
+        while (line != ("# " + type + "\n")) {
+            lineid = lineid + 1;
+            line = document.lineAt(lineid).text;
+        }
+        if (lineid >= document.lineCount) {
+            Box.debug("未能找到[" + type + "]型关联项");
+            return "";
+        }
+        lineid = lineid + 1;
+        line = document.lineAt(lineid).text;
+        while (lineid < document.lineCount - 1 && line[0] != '#') {
+            key = line.substring(1, line.search("]"));
+            value = line.substring(line.search("]"), line.length - 1);
+            result = result + "\n" + key + "|" + value;
+            lineid = lineid + 1;
+            line = document.lineAt(lineid).text;
+        }
+        return result;
+    }
+    catch (error) {
+        console.log(error);
+    }
+    return "";
+}
 function DIY_show_function_document(context, target) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -135,12 +198,14 @@ function DIY_show_function_document(context, target) {
             map.set("name", document.lineAt(0).text.substring(2));
             map.set("file", DIY_log_in_filepath(document));
             map.set("note", DIY_log_in_note(document));
+            map.set("code", DIY_log_in_content());
             let filepath = map.get("file");
             filepath = filepath.replace(new RegExp("\\\\", "g"), "--");
             filepath = filepath.replace(new RegExp("/", "g"), "--");
             filepath = path.join(yield get_DIY_library(), filepath) + "+" + map.get("name") + ".md";
             filepath = filepath.replace(new RegExp("\\\\", "g"), "\\\\\\\\");
             map.set("document", filepath);
+            map.set("fullname", filepath.substring(filepath.lastIndexOf("\\\\") + 1));
             console.log("document is " + map.get("document"));
             html = Box.replace_variable(html, map);
             const panel = vscode.window.createWebviewPanel('testWebView', document.lineAt(0).text.substring(2), vscode.ViewColumn.Active, {
