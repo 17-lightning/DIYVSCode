@@ -82,6 +82,35 @@
             overflow-x: auto;
             line-height: 1.5;
         }
+
+        .relation {
+            padding: 5px;
+        }
+        
+        #element {
+            white-space: pre-wrap; /* 关键属性：保留换行和空格 */
+        }
+
+        .edit-item {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .edit-item textarea {
+            resize: none; /* 禁止调整大小 */
+            overflow: hidden; /* 隐藏滚动条 */
+            white-space: nowrap; /* 禁止自动换行 */
+            font-family: monospace; /* 使用等宽字体 */
+            width: 200px;
+            height: 20px;
+            padding: 3px;
+        }
+
+        .edit-item button {
+            padding: 2px 6px;
+            cursor: pointer;
+        }
     </style>
     <body>
         <h2>${name}&emsp;<button type="button" id="copy-me">拷贝</button></h2>
@@ -97,21 +126,30 @@
         <note>${file}</note>
         <h3>所属模块</h3>
         <note>${module}</note>
-        <h3>子函数&emsp;<button type="button" id="search-child">自动搜寻子函数 - 施工中</button></h3>
+        <!-- 关联项 -->
+        <div class="relation">
+            <h3>子函数&emsp;
+                <button type="button" id="edit-child">编辑</button>
+            </h3>
+            <ul id="child_list">
+                <!-- 通过RenderList动态生成 -->
+            </ul>
+        </div>
         <h3>父函数&emsp;<button type="button" id="search-parent">自动搜寻父函数 - 施工中</button></h3>
         <h3>关联项</h3>
         <h3>函数内容</h3>
         <div class="code-container">
             <code id="content">${code}</code>
         </div>
-
     </body>
     <script>
+        // 元素布局
         const vscode = acquireVsCodeApi();
         const noteArea = document.getElementById('note-area');
         const noteEditBtn = document.getElementById('note-edit');
         // 当前是否处于编辑模式
         let noteIsEditing = false;
+        let relateIsEditing = false;
         // 将原始注释修改为显示型
         function noteTurntoView() {
             var currentNote = document.getElementById('note').textContent;
@@ -140,16 +178,81 @@
         function copy_my_fullname() {
             navigator.clipboard.writeText("${fullname}");
         }
-        document.getElementById('copy-me').addEventListener('click', copy_my_fullname);
-        // Note按钮事件处理
-        noteEditBtn.addEventListener('click', function() {
-            if (noteIsEditing) {
-                noteSwitchToView();
+        // 布置关联项列表的一项
+        function createListItem(element) {
+            const liContainer = document.createElement('div');
+            liContainer.className = 'edit-item';
+            const li = document.createElement('li');
+            if (relateIsEditing) {
+                // 名称 真名 注释
+                const textEditor1 = document.createElement('textarea'); 
+                const textEditor2 = document.createElement('textarea');
+                const textEditor3 = document.createElement('textarea');
+                const button = document.createElement('button');
+                // textEditor1.
+                if (Object.keys(element).length > 0) {
+                    textEditor1.innerHTML = element.key;
+                    textEditor2.innerHTML = element.value;
+                    textEditor3.innerHTML = element.note;
+                    button.textContent = '删除';
+                } else {
+                    button.textContent = '新增';
+                }
+                liContainer.appendChild(textEditor1);
+                liContainer.appendChild(textEditor2);
+                liContainer.appendChild(textEditor3);
+                // 这里后续将填写按钮的点击事件
+                liContainer.appendChild(button);
             } else {
-                noteSwitchToEdit();
+                const keyLink = document.createElement('a');
+                keyLink.textContent = element.key;
+                const text = document.createElement('label');
+                text.innerHTML = '&emsp;' + element.note;
+                liContainer.appendChild(keyLink);
+                liContainer.appendChild(text);
+                keyLink.addEventListener('click', () => {
+                    // 发送消息到VSCode插件
+                    vscode.postMessage({
+                        "cmd":"jump-to",
+                        "target": element.value
+                    });
+                });
             }
+            li.appendChild(liContainer);
+            return li;
+        }
+        // 布置关联项列表
+        function render_relation_list(containerId, data) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            // 仅在编辑模式下，有自动搜索子函数的选项
+            if (relateIsEditing) {
+                const button = document.createElement('button');
+                button.textContent = "自动搜寻子函数";
+                container.appendChild(button);
+            }
+            data.forEach(element => {
+                const listItem = createListItem(element);
+                container.appendChild(listItem);
+            });
+            // 仅在编辑模式下，会生成一个空选项允许用户填入
+            if (relateIsEditing) {
+                const listItem = createListItem({});
+                container.appendChild(listItem);
+            }
+        }
+        const child_list = [${child_list}];
+        // [TOP]
+        document.getElementById('note-edit').addEventListener('click', function() {
+            if (noteIsEditing) {noteSwitchToView();} else {noteSwitchToEdit();}
+        });
+        document.getElementById('copy-me').addEventListener('click', copy_my_fullname);
+        document.getElementById('edit-child').addEventListener('click', function() {
+            if (relateIsEditing) {relateIsEditing = false;} else {relateIsEditing = true;}
+            vscode.postMessage({"cmd":"test", "msg":"editing child" + relateIsEditing});
+            render_relation_list('child_list', child_list);
         })
         noteTurntoView();
-
+        render_relation_list('child_list', child_list);
     </script>
 </html>

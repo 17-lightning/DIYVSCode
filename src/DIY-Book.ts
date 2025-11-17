@@ -131,7 +131,6 @@ function DIY_log_in_content() : string {
         }
         // 移除最后一个\n
         content = content.substring(0, content.length - 1);
-        console.log("[ltn] code content is " + content);
         return content;
     } catch (error) {
         console.log(error);
@@ -147,10 +146,13 @@ function DIY_log_in_relation(document : vscode.TextDocument, type : string) : st
         let key;
         let value;
         let result = "";
-        while (line != ("# " + type + "\n")) {
+        // ... 我以为你能自动识别document.lineAt(lineid)超过document.lineCount的情况并给line赋值undefined结果你是直接抛出异常，而且没有任何回旋余地
+        // 然后这里的lineid还非常不直观的要 +2
+        while (line != ("## " + type) && (lineid + 2 < document.lineCount)) {
             lineid = lineid + 1;
-            line = document.lineAt(lineid).text;
+            line = document.lineAt(lineid)?.text;
         }
+        Box.debug_log("[LTN] target line is [" + lineid + "]");
         if (lineid >= document.lineCount) {
             Box.debug("未能找到[" + type + "]型关联项");
             return "";
@@ -158,9 +160,11 @@ function DIY_log_in_relation(document : vscode.TextDocument, type : string) : st
         lineid = lineid + 1;
         line = document.lineAt(lineid).text;
         while (lineid < document.lineCount - 1 && line[0] != '#') {
+            // [key](value):note
             key = line.substring(1, line.search("]"));
-            value = line.substring(line.search("]"), line.length - 1);
-            result = result + "\n" + key + "|" + value;
+            value = line.substring(line.search("]") + 2, line.length - 1);
+            result = result + "\n" + "{ key: \"" + key + "\", value: \"" + value + "\", note: \"\" },";
+            // result = result + "\n" + key + "|" + value;
             lineid = lineid + 1;
             line = document.lineAt(lineid).text;
         }
@@ -179,29 +183,32 @@ async function DIY_show_function_document(context : vscode.ExtensionContext, tar
         // let localpath = context.extensionPath
         let html = Box.load_text_file(path.join(localpath, "asset/function_template.html"));
         let map = new Map<string, string>();
-        map.set("name", document.lineAt(0).text.substring(2));
-        map.set("file", DIY_log_in_filepath(document));
-        map.set("note", DIY_log_in_note(document));
-        map.set("code", DIY_log_in_content());
-        let filepath = map.get("file");
-        filepath = filepath!.replace(new RegExp("\\\\", "g"), "--");
+        map.set("name", document.lineAt(0).text.substring(2));  // 文档的第一行永远是`# 函数名`
+        map.set("file", DIY_log_in_filepath(document));         // 目标函数所在的文件
+        map.set("note", DIY_log_in_note(document));             // 注释，从# 函数名
+        map.set("code", DIY_log_in_content());                  // 录入函数内容，待完善
+        map.set("child_list", DIY_log_in_relation(document, "子函数")); // 录入子函数
+
+        let filepath = map.get("file");                         // 目标函数对应的文档
+        filepath = filepath!.replace(new RegExp("\\\\", "g"), "--"); // 由于文档路径中不能包含/，要将/转换成--
         filepath = filepath.replace(new RegExp("/", "g"), "--");
-        filepath = path.join(await get_DIY_library(), filepath) + "+" + map.get("name") +".md";
-        filepath = filepath.replace(new RegExp("\\\\", "g"), "\\\\\\\\");
+        filepath = path.join(await get_DIY_library(), filepath) + "+" + map.get("name") +".md"; // 组装上LIBRARY
+        filepath = filepath.replace(new RegExp("\\\\", "g"), "\\\\\\\\"); // 由于LIBRARY中可能有\\，而html会好心把\\转义一轮，为了让回收的消息里\\正常显示，只能\\\\了
         map.set("document", filepath);
-        map.set("fullname", filepath.substring(filepath.lastIndexOf("\\\\") + 1));
-        console.log("document is " + map.get("document"));
+        map.set("fullname", filepath.substring(filepath.lastIndexOf("\\\\") + 1)); // 不带LIBRARY的文档名
+        Box.debug("document is " + map.get("document"));
 
         html = Box.replace_variable(html, map);
         const panel = vscode.window.createWebviewPanel(
             'testWebView',
             document.lineAt(0).text.substring(2),
-            vscode.ViewColumn.Active,
+            vscode.ViewColumn.Beside,
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
             }
         );
+        Box.debug_log("[LTN] html is " + html);
         panel.webview.html = html;
         panel.webview.onDidReceiveMessage(message => DIY_book_html_handler(context, message));
         // console.log(html);
@@ -390,16 +397,6 @@ async function DIY_book_html_handler(context : vscode.ExtensionContext, message:
     } catch (error) {
         console.log(error);
     }
-}
-
-
-/**
- * 创建空白MD文档
- * @param context 
- * @param filename 
- */
-async function DIY_create_blank_document(context : vscode.ExtensionContext, filename : string) {
-    console.log("即将创建空白文档[" + filename + "]");
 }
 
 export function book_test(context: vscode.ExtensionContext) {

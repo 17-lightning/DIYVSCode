@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { error } from 'console';
 
 /**
  * 向VSCode窗口输出一条信息（右下角的那种）
@@ -96,6 +97,13 @@ export function load_text_file(filepath : string) : string {
         console.log("加载[" + filepath + "]文件内容时发生故障");
         return "";
     }
+}
+
+export function debug_log(target : string) {
+    fs.appendFile("D:\\PP\\temp\\log.txt", target + "\n", (err) => {
+        if (err) throw err;
+        console.log(err);
+    });
 }
 
 /**
