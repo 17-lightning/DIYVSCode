@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.activate = activate;
 const vscode = require("vscode");
+const Toolbox = require("./Toolbox");
 const DIY_Jump_1 = require("./DIY-Jump");
 const DIY_Book_1 = require("./DIY-Book");
 function activate(context) {
@@ -11,6 +12,7 @@ function activate(context) {
     disposable = vscode.commands.registerCommand('DIYVSCode.diybook', () => (0, DIY_Book_1.DIY_book)(context));
     context.subscriptions.push(disposable);
     (0, DIY_Book_1.book_test)(context);
+    Toolbox.clean_debug_log();
     return;
 }
 //# sourceMappingURL=DIY-Top.js.map

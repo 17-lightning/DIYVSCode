@@ -12,14 +12,6 @@ export function show_vscode_message(text : string): void {
 }
 
 /**
- * 调试内容都会用该函数打印，但正式发布版本里这个函数的内容是被注释掉的，如要使用烦请打开
- * @param text 
- */
-export function debug(text: string): void { 
-    console.log(text);
-}
-
-/**
  * 用于判断当前行是否为目标函数定义（由于只有一行输入，当前判断是不全面的）  
  * @param line 
  */
@@ -32,50 +24,75 @@ export function is_target_function_definition(line: string, target: string): boo
 }
 
 /**
- * 获取当前路径下，DIY-config.md中的指定属性，没有获取到时返回空字符串
+ * 获取配置，优先去当前文件夹下的DIY-config.md中搜索，没有时去VSCode里搜索，再没有就自求多福了
  * @param target 
  */
 export async function get_DIY_config(target : string) : Promise<string> {
     try {
-        const editor = vscode.window.activeTextEditor;
-        if (editor == undefined) {
-            return "";
-        }
-        const workspace = vscode.workspace.getWorkspaceFolder(editor.document.uri);
-        if (workspace == undefined) {
-            return "";
-        }
-        let config = path.join(workspace.uri.fsPath, "DIY-config.md");
-        if (!fs.existsSync(config)) {
-            return "";
-        }
-        let document = await vscode.workspace.openTextDocument(vscode.Uri.file(config));
-        let line : string
-        let lineid = 0
-        let array : string[]
-        // DIY-config.md的前两行是表头，可以忽略
-        for (lineid = 2; lineid < document.lineCount; lineid++) {
-            line = document.lineAt(lineid).text;
-            array = line.split("|");
-            if (array.length < 2) {
-                continue;
+        // 优先在打开的文件夹下搜索DIY-config.md
+        let workFolders = vscode.workspace.workspaceFolders;
+        if (workFolders != undefined) {
+            let workFolder = workFolders[0];
+            let configFile = path.join(workFolder.uri.fsPath, "DIY-config.md");
+            if (fs.existsSync(configFile)) {
+                let document = await vscode.workspace.openTextDocument(configFile);
+                if (document == undefined) {
+                    debug("打开配置文件失败" + configFile);
+                }
+                let lineid;
+                let line;
+                let array;
+                for (lineid = 2; lineid < document.lineCount; lineid++) {
+                    line = document.lineAt(lineid).text;
+                    array = line.split("|");
+                    if (array.length < 2) {
+                        continue;
+                    }
+                    debug("正在检查[" + array[0] + "]");
+                    if (array[0] == target) {
+                        debug("成功在配置文件[" + configFile + "]中找到配置[" + target + "]为[" + array[1] + "]");
+                        return array[1];
+                    }
+                }
+                debug("在配置文件中没有找到" + target);
+            } else {
+                debug("当前文件夹下不存在配置文件" + configFile);
             }
-            if (array[0] == target) {
-                return array[1];
-            }
+        } else {
+            debug("当前没有打开文件夹，无法获取配置文件");
+        }
+        // 其次去VSCode配置里找
+        let result = vscode.workspace.getConfiguration().get<string>("diyvscode." + target);
+        debug("正在寻找配置" + target);
+        debug("结果为" + result)
+        if (result != undefined && result.length > 0) {
+            debug("成功在VSCode配置中找到配置[" + target + "]为[" + result + "]");
+            return result;
+        } else {
+            debug("在VSCode配置中也没有找到配置[" + target + "]");
         }
     } catch (error) {
-        console.log("[get_DIY_config]中发生错误：" + error);
+        debug("[get_DIY_config]中发生错误：" + error);
     }
     return "";
 }
 
+// 获取当前工作区，但该操作依赖打开文件，在非文件界面无法正确识别
 export function get_workspace_path() : string {
     let editor = vscode.window.activeTextEditor;
     if (editor == undefined) return "";
     let workspace = vscode.workspace.getWorkspaceFolder(editor.document.uri);
     if (workspace == undefined) return "";
     return workspace.uri.fsPath;
+}
+
+// 获取首个工作区，不依赖打开的文件，请尽量使用当前函数
+export function get_first_workspace() : string {
+    let workFolders = vscode.workspace.workspaceFolders;
+    if (workFolders == undefined) {
+        return "";
+    }
+    return workFolders[0].uri.fsPath;
 }
 
 export function get_vscode_config(key : string) : string {
@@ -99,11 +116,32 @@ export function load_text_file(filepath : string) : string {
     }
 }
 
-export function debug_log(target : string) {
-    fs.appendFile("D:\\PP\\temp\\log.txt", target + "\n", (err) => {
-        if (err) throw err;
-        console.log(err);
-    });
+// debug日志会记录在这里
+export function debug(target : string) {
+    if (is_debug()) {
+        fs.appendFile("D:\\PP\\temp\\log.txt", target + "\n", (err) => {
+            if (err) throw err;
+            console.log(err);
+        });
+    }
+}
+
+export function sep_debug() {
+    if (is_debug()) {
+        fs.appendFile("D:\\PP\\temp\\log.txt", "==============================================\n", (err) => {
+            if (err) throw err;
+            console.log(err);
+        });
+    }
+}
+
+export function clean_debug_log() {
+    if (is_debug()) {
+        fs.writeFile("D:\\PP\\temp\\log.txt", "", (err) => {
+            if (err) throw err;
+            console.log(err);
+        });
+    }
 }
 
 /**
@@ -148,4 +186,10 @@ export function replace_variable(input: string, variables: Map<string, string>):
         console.log(error);
         return "";
     }
+}
+
+// debug模式开关，出厂关闭(提交到github前关闭跑一次编译，确保github上去的js是正常的)
+export function is_debug()
+{
+    return true;
 }

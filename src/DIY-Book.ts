@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as Box from './Toolbox';
 import * as path from 'path';
 import * as fs from 'fs';
+import { ExecException } from 'child_process';
+import { error } from 'console';
 
 // 跳转到当前选中元素的对应文档（如果没有选中元素，将跳转到当前文件的文档）（如果没有当前文档 —— 不会执行跳转）
 // 如果不存在这个文档，会跳转到[文档生成]页面
@@ -14,8 +16,8 @@ export async function DIY_book(context : vscode.ExtensionContext) {
             // [loading] 或许可以考虑一下在这种情况跳转一个welcome或者default页面
             return;
         }
-        // 当前打开的文件必须属于工作区内，打开一个野生文件是无法跳转的
-        let workspace = Box.get_workspace_path();
+        // 只能操作当前打开的文件夹1，不能处理打开多个文件夹的情况，或许是我的水平还不够吧
+        let workspace = Box.get_first_workspace();
         if (workspace.length == 0) {
             return;
         }
@@ -24,7 +26,7 @@ export async function DIY_book(context : vscode.ExtensionContext) {
         let target = "";
         // 如果没有圈选关键字，认为将针对当前文档进行跳转
         if (keyword == undefined || keyword.length == 0) {
-            target = "";
+            target = file;
             type = "file";
         } else {
             target = file + "+" + keyword;
@@ -35,37 +37,27 @@ export async function DIY_book(context : vscode.ExtensionContext) {
                 type = "attr";
             }
         }
-        console.log("[DIY]即将打开 " + target + "对应的文档");
-        // 由于文件名中不能出现/，将所有/转成-- …… 你说文件名/函数名里原本就有--怎么办……当前是没有办法，后续用网页URL那种%123的方式吧，我先把基础功能实现了
+
+        Box.debug("[DIY]即将打开 " + target + "对应的文档，其类型为" + type);
+        // 由于文件名中不能出现/，将所有/转成-- …… 你说文件名/函数名里原本就有--怎么办……当前是没有办法，后续用网页URL那种%123的方式吧，先关注基础功能
         target = target.replace(new RegExp("\\\\", "g"), "--");
         target = target.replace(new RegExp("/", "g"), "--");
-        let library = await get_DIY_library();
-        if (library == "") {
-            library = path.join(workspace, "DIY-library");
-            if (!fs.existsSync(library)) fs.mkdirSync(library);
-            if (!fs.existsSync(library)) {
-                Box.show_vscode_message("在当前工作区内创建Library [" + library + "]失败\n");
-                return;
-            }
-        }
-        target = path.join(library, target);
         target = target + ".md";
-        console.log("[DIY]真正需要打开的文档其实是[" + target + "]");
-        if (fs.existsSync(target)) {
+
+        if (fs.existsSync(path.join(await get_DIY_library(), target))) {
             // 目标MD存在，就会直接跳转到她
-            // vscode.window.showTextDocument(await vscode.workspace.openTextDocument(target));
             DIY_show_function_document(context, target);
-            // 然后对特定格式的MARKDOWN，将可以用本插件来进行特殊的观看和处理
             return;
         }
+        // 如果要打开的文档不存在，重复打开这个不存在的文档的操作可以自动生成该文档 [loading]后续考虑增加时间限制
         if (context.globalState.get<string>("DIY-book-last-selection") != target) {
             context.globalState.update("DIY-book-last-selection", target);
             Box.show_vscode_message("不存在目标的对应文档，重复当前操作可以自动创建");
             return;
         }
-        console.log("即将创建[" + target + "]");
+        Box.debug("即将创建[" + target + " ]("+ type + ")");
         if (type == "function") {
-            DIY_create_function_document(context);
+            DIY_create_current_function_document(context);
             DIY_show_function_document(context, target);
         } else {
             Box.show_vscode_message("当前暂不支持创建函数以外的文档");
@@ -138,33 +130,41 @@ function DIY_log_in_content() : string {
     return "";
 }
 
-// 获取关联项，关联项会在对应段落下以[名称](./目标md)存在
-function DIY_log_in_relation(document : vscode.TextDocument, type : string) : string {
+// 获取关联项，并以[ {"key":xxx, "value":xxx, "note":xxx} ]的形式返回
+function DIY_log_in_relation(document : vscode.TextDocument, type : string) : Array<Record<string, string>> {
     try {
-        let lineid = 1; // 第一行是标题，所以可以从第二行开始
+        let lineid : number = 1; // 第一行是标题，所以可以从第二行开始
         let line = document.lineAt(lineid).text;
         let key;
         let value;
-        let result = "";
+        let note;
+        let result : Array<Record<string, string>> = [];
+        Box.sep_debug();
+        Box.debug("正在查询" + document.uri.fsPath + "的子函数");
         // ... 我以为你能自动识别document.lineAt(lineid)超过document.lineCount的情况并给line赋值undefined结果你是直接抛出异常，而且没有任何回旋余地
         // 然后这里的lineid还非常不直观的要 +2
         while (line != ("## " + type) && (lineid + 2 < document.lineCount)) {
             lineid = lineid + 1;
             line = document.lineAt(lineid)?.text;
         }
-        Box.debug_log("[LTN] target line is [" + lineid + "]");
         if (lineid >= document.lineCount) {
             Box.debug("未能找到[" + type + "]型关联项");
-            return "";
+            return [];
         }
         lineid = lineid + 1;
         line = document.lineAt(lineid).text;
         while (lineid < document.lineCount - 1 && line[0] != '#') {
-            // [key](value):note
+            // 一行正确的记录格式为 [key](value):note，即使没有note，:也不能忽略不然这里会出错的
             key = line.substring(1, line.search("]"));
-            value = line.substring(line.search("]") + 2, line.length - 1);
-            result = result + "\n" + "{ key: \"" + key + "\", value: \"" + value + "\", note: \"\" },";
-            // result = result + "\n" + key + "|" + value;
+            value = line.substring(line.search("]") + 4, line.search("\:") - 4); // 4是为了跳过 ](./ 4大天王 和 .md)
+            // Box.debug("start:" + line.search("]") + 4 + "end: " + line.search("\:"));
+            note = line.substring(line.search("\:") + 1); // 在key和value中不会出现:
+            if (key == undefined || value == undefined || note == undefined) {
+                continue;
+            }
+            let temp = {"key": key, "value": value, "note":note};
+            Box.debug("找到[" + document.uri.fsPath + "]的一个[" + type + "]: key[" + key + "] value[" + value + "] note[" + note + "]");
+            result.push(temp);
             lineid = lineid + 1;
             line = document.lineAt(lineid).text;
         }
@@ -172,31 +172,24 @@ function DIY_log_in_relation(document : vscode.TextDocument, type : string) : st
     } catch (error) {
         console.log(error);
     }
-    return "";
+    return [];
 }
 
 async function DIY_show_function_document(context : vscode.ExtensionContext, target : string) {
     try {
         let lineid : number = 0;
-        let document = await vscode.workspace.openTextDocument(target);
+        let document = await vscode.workspace.openTextDocument(path.join(await get_DIY_library(), target));
         let localpath = "D:/PP/DIYVSCode/";
         // let localpath = context.extensionPath
         let html = Box.load_text_file(path.join(localpath, "asset/function_template.html"));
         let map = new Map<string, string>();
         map.set("name", document.lineAt(0).text.substring(2));  // 文档的第一行永远是`# 函数名`
         map.set("file", DIY_log_in_filepath(document));         // 目标函数所在的文件
-        map.set("note", DIY_log_in_note(document));             // 注释，从# 函数名
+        map.set("note", DIY_log_in_note(document));             // 注释，从# 函数名开始到第一个#行结束
         map.set("code", DIY_log_in_content());                  // 录入函数内容，待完善
-        map.set("child_list", DIY_log_in_relation(document, "子函数")); // 录入子函数
-
-        let filepath = map.get("file");                         // 目标函数对应的文档
-        filepath = filepath!.replace(new RegExp("\\\\", "g"), "--"); // 由于文档路径中不能包含/，要将/转换成--
-        filepath = filepath.replace(new RegExp("/", "g"), "--");
-        filepath = path.join(await get_DIY_library(), filepath) + "+" + map.get("name") +".md"; // 组装上LIBRARY
-        filepath = filepath.replace(new RegExp("\\\\", "g"), "\\\\\\\\"); // 由于LIBRARY中可能有\\，而html会好心把\\转义一轮，为了让回收的消息里\\正常显示，只能\\\\了
-        map.set("document", filepath);
-        map.set("fullname", filepath.substring(filepath.lastIndexOf("\\\\") + 1)); // 不带LIBRARY的文档名
-        Box.debug("document is " + map.get("document"));
+        map.set("document", target);                            // 文档全名（有.md）
+        map.set("fullname", target.substring(0, target.length - 3)); // 文件加函数名，文档真名（无.md）
+        map.set("debug", Box.is_debug() ? "true" : "false");    // debug模式与否
 
         html = Box.replace_variable(html, map);
         const panel = vscode.window.createWebviewPanel(
@@ -208,23 +201,27 @@ async function DIY_show_function_document(context : vscode.ExtensionContext, tar
                 retainContextWhenHidden: true,
             }
         );
-        Box.debug_log("[LTN] html is " + html);
+        Box.debug("[LTN] html is " + html);
         panel.webview.html = html;
-        panel.webview.onDidReceiveMessage(message => DIY_book_html_handler(context, message));
-        // console.log(html);
+        panel.webview.onDidReceiveMessage(message => DIY_book_html_handler(context, panel, message));
     } catch (error) {
         console.log(error);
     }
 }
 
-async function DIY_create_function_document(context : vscode.ExtensionContext) {
+// 当前只能生成选中目标的文档，后续要考虑更广泛的生成
+async function DIY_create_current_function_document(context : vscode.ExtensionContext) {
     try {
         const file = Box.get_current_filepath();
         const keyword = Box.get_current_keyword();
-        // let localpath = context.extensionPath
-        let localpath = "D:/PP/DIYVSCode/"; // [ltn] 挺无奈的，正式提交的时候再把这里换成以上描述吧，因为我现在用F5调试，context.extensionPath是不存在的
+        let localpath = "";
+        if (Box.is_debug()) {
+            // 由于用F5进行调试时插件不是真的进入了VSCode中，所以context.extensionPath是找不到插件的，只能这样处理
+            localpath = "D:/PP/DIYVSCode/";
+        } else {
+            localpath = context.extensionPath;
+        }
         let modules_html = Box.load_text_file(path.join(localpath, "asset/function_template.md"));
-        // console.log("[DIY] 函数");
         let variables = new Map<string, string>();
         variables.set("name", keyword);
         variables.set("file", file);
@@ -232,7 +229,6 @@ async function DIY_create_function_document(context : vscode.ExtensionContext) {
         let filepath = file.replace(new RegExp("\\\\", "g"), "--");
         filepath = filepath.replace(new RegExp("/", "g"), "--");
         filepath = path.join(await get_DIY_library(), filepath + "+" + keyword + ".md");
-        console.log("[DIY]即将向[" + filepath + "写入内容(" + modules_html.length + ")");
         fs.writeFile(filepath, modules_html, (err) => {
             console.log(err);
         });
@@ -243,22 +239,31 @@ async function DIY_create_function_document(context : vscode.ExtensionContext) {
 
 // 查询文档库路径
 // 1. 如果当前工作区下存在`DIY-config.md`，并且其中有`DIY-library`，采用之
-// 2. 如果当前工作区下存在`DIY-library`文件夹，采用之
-// 3. 使用配置文件中的`DIY`
+// 2. 如果配置文件中存在`DIY-library`，采用之
+// 3. 如果当前工作区下存在`DIY-library`文件夹，采用之，若没有，创建一个
 async function get_DIY_library() : Promise<string> {
     let library = await Box.get_DIY_config("DIY-library");
     if (library.length != 0) {
         return library;
     }
-    library = Box.get_workspace_path();
+    library = Box.get_first_workspace();
     if (library.length != 0) {
         library = path.join(library, "DIY-library");
         if (fs.existsSync(library)) { // [loading] 需要区分一下这里的library是文件夹还是文件，但是现在先不管
             return library;
+        } else {
+            fs.mkdirSync(library);
+            if (!fs.existsSync(library)) {
+                Box.show_vscode_message("创建Library[" + library + "]失败，请注意");
+                Box.debug("[TOP]创建Library[" + library + "]失败，请注意");
+                throw new Error("创建Libraray[" + library + "]失败");
+            }
+            return library;
         }
+    } else {
+        Box.show_vscode_message("当前没有打开文件夹，无法设置library");
+        throw new Error("没有打开文件夹，无法操作library");
     }
-    library = Box.get_vscode_config("DiyLibrary");
-    return library;
 }
 
 // 用来辅助你创建新文档
@@ -289,7 +294,7 @@ async function DIY_book_creator(context : vscode.ExtensionContext, target : stri
         let html = Box.load_text_file(path.join(localpath, "asset/library-create.html"));
 
         panel.webview.html = html;
-        panel.webview.onDidReceiveMessage(message => DIY_book_html_handler(context, message));
+        panel.webview.onDidReceiveMessage(message => DIY_book_html_handler(context, panel, message));
     } catch (error) {
         console.log(error);
     }
@@ -377,20 +382,143 @@ async function DIY_book_update_note(filepath : string, note : string)
     })
 }
 
+// 判决目标是否为列表操作
+async function DIY_book_relation_edit(panel : vscode.WebviewPanel, message : {cmd:string, key:string, value:string, note:string, id:number, me:string}) : Promise<boolean> {
+    try {
+        let array = message.cmd.split("-");
+        let target = "";
+        if (array.length != 2) {
+            return false;
+        }
+        if (array[0] == 'childList') {
+            target = "子函数";
+        } else if (array[0] == 'parentList') {
+            target = "父函数";
+        } else if (array[0] == "relateList") {
+            target = "关联项"
+        } else {
+            return false;
+        }
+        if (array[1] != "add" && array[1] != "edit" && array[1] != "del") {
+            return false;
+        }
+        let filepath = path.join(await get_DIY_library(), message.me + ".md");
+        let document = await vscode.workspace.openTextDocument(filepath);
+        let lineid = 1;
+        let line;
+        let content = document.lineAt(0).text;
+        let flag = 0;
+        let value;
+        while (lineid < document.lineCount) {
+            line = document.lineAt(lineid).text;
+            if (line == "## " + target) {
+                Box.debug("第" + lineid + "行为目标元素");
+                flag = 1;
+                content = content + "\n" + line;
+            } else if (line.charAt(0) == "#") {
+                if (flag == 1) {
+                    if (array[1] == "add") {
+                        // 检查value是否有效
+                        if (fs.existsSync(path.join(await get_DIY_library(), message.value + ".md"))) {
+                            content = content + "\n" + "[" + message.key + "](./" + message.value + ".md):" + message.note;
+                            panel.webview.postMessage({"cmd":message.cmd, "id":message.id, "res":"PASS"});
+                        } else {
+                            panel.webview.postMessage({"cmd":message.cmd, "id":message.id, "res":"FAIL"});
+                        }
+                    } else {
+                        // 有问题
+                        panel.webview.postMessage({"cmd":message.cmd, "id":message.id, "res":"FAIL"});
+                    }
+                    flag = 0;
+                }
+                content = content + "\n" + line;
+            } else if (flag == 1) {
+                value = line.substring(line.search("]") + 4, line.search("\:") - 4); // 4是为了跳过 ](./ 4大天王 和 .md)
+                if (value == message.value) {
+                    if (array[1] == "edit") {
+                        content = content + "\n" + "[" + message.key + "](./" + message.value + "):" + message.note;
+                    } else if (array[1] == "add") {
+                        panel.webview.postMessage({"cmd":message.cmd, "id":message.id, "res":"FAIL"});
+                        Box.debug("你想加入的[" + message.value + "]已在[" + target + "]");
+                        return true;
+                    }
+                    panel.webview.postMessage({"cmd":message.cmd, "id":message.id, "res":"PASS"});
+                } else {
+                    content = content + "\n" + line;
+                }
+            } else {
+                content = content + "\n" + line;
+            }
+            lineid = lineid + 1;
+        }
+        Box.debug("预期写入" + content);
+        fs.writeFile(filepath, content, (err) => {
+            Box.debug(err!.toString());
+        });
+        return true;
+    } catch (error) {
+        Box.debug(error.toString());
+    }
+    return false;
+}
+
+async function DIY_goto_target(filepath : string, target : string)
+{
+    let document = await vscode.workspace.openTextDocument(filepath);
+    let lineid = 0;
+    let line;
+    let targetline = 0;
+    for (lineid = 0; lineid < document.lineCount; lineid++) {
+        line = document.lineAt(lineid).text;
+        if (Box.is_target_function_definition(line, target)) {
+            targetline = lineid;
+            break;
+        }
+    }
+    vscode.window.showTextDocument(document, {
+        viewColumn: vscode.ViewColumn.One,
+        selection: new vscode.Range(new vscode.Position(targetline, 0), new vscode.Position(targetline, 0))
+    });
+}
+
 /**
  * 注意Webview端发送的是一个Map，但是抵达Vscode端时已被整合为Object
  * 你不能用遍历Map的entries去查询其内容，但可以用for (key in obj)的方式遍历其中的属性
  * 不过这个OBJ只能包含数据内容，其携带的方法信息、原型信息等均会丢失
  */
-async function DIY_book_html_handler(context : vscode.ExtensionContext, message:Object) {
+async function DIY_book_html_handler(context : vscode.ExtensionContext, panel : vscode.WebviewPanel, message:Object) {
     try {
-        console.log("接收到一条消息");
+        Box.sep_debug();
+        Box.debug(panel.title + "接收到一条消息:");
         for (let key in message) {
-            console.log(key + ":" + message[key]);
+            Box.debug(key + ":" + message[key]);
         }
         // 执行消息内容
+        if (message.cmd == undefined) {
+            Box.sep_debug();
+            Box.debug("未知消息，不带cmd没法解析");
+            return;
+        }
         if (message.cmd == "change-note") { // 变更note
             DIY_book_update_note(path.join(await get_DIY_library(), message.name), message.note);
+        } else if (message.cmd == "query-child") { // 查询子函数列表
+            let document = path.join(await get_DIY_library(), message.msg + ".md");
+            document = await vscode.workspace.openTextDocument(document);
+            if (document == undefined) {
+                Box.debug("打开[" + path.join(await get_DIY_library(), message.msg) + "] 失败");
+            }
+            panel.webview.postMessage({"cmd":"flush-child", "data":DIY_log_in_relation(document, "子函数")});
+        } else if (message.cmd == "jump-to") {
+            let document = await vscode.workspace.openTextDocument(path.join(await get_DIY_library(), message.target + ".md"));
+            let filepath = DIY_log_in_filepath(document);
+            let target = document.lineAt(0).text.substring(2);  // 文档的第一行永远是`# 函数名`
+            Box.debug("预计跳转" + filepath + " + " + target);
+            DIY_goto_target(path.join(await Box.get_first_workspace(), filepath), target);
+        } else if (message.cmd == "my-file") {
+            let document = await vscode.workspace.openTextDocument(path.join(await get_DIY_library(), message.target + ".md"));
+            vscode.window.showTextDocument(document);
+        } else if (await DIY_book_relation_edit(panel, message)) { // 判别这是不是一个 child/parent/relateList - add/del/edit
+            console.log("完成列表处理");
         } else {
             console.log("未知消息");
         }

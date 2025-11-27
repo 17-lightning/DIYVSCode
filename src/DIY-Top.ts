@@ -12,5 +12,6 @@ export function activate(context : vscode.ExtensionContext) {
     context.subscriptions.push(disposable);
 
     book_test(context);
+    Toolbox.clean_debug_log();
     return;
 }

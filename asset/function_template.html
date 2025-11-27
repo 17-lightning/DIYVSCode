@@ -111,9 +111,21 @@
             padding: 2px 6px;
             cursor: pointer;
         }
+
+        /* 用红框标记用户输入错误的地方 */
+        .error {
+            border-color: red;
+        }
+
     </style>
     <body>
-        <h2>${name}&emsp;<button type="button" id="copy-me">拷贝</button></h2>
+        <h2>
+            ${name}&emsp;
+            <button type="button" id="copy-me">拷贝</button>
+            <button type="button" id="goto-me">跳转</button>
+            <button type="button" id="my-file">原文</button>
+        </h2>
+        <code id="test-area"></code><button type="button" id="clear-test-area">清空</button>
         <div class="note-container">
             <font size="4" color="333333">说明</font>
             <div id="note-area"> <!-- 代码块将在这里显示或编辑 -->
@@ -123,20 +135,25 @@
         </div>
         <br>
         <h3>所属文件</h3>
-        <note>${file}</note>
+        <note>${file}</note> <!-- 会做成超链接支持跳转的 -->
         <h3>所属模块</h3>
         <note>${module}</note>
         <!-- 关联项 -->
         <div class="relation">
-            <h3>子函数&emsp;
+            <h3>
+                子函数&emsp;
                 <button type="button" id="edit-child">编辑</button>
             </h3>
             <ul id="child_list">
                 <!-- 通过RenderList动态生成 -->
             </ul>
         </div>
-        <h3>父函数&emsp;<button type="button" id="search-parent">自动搜寻父函数 - 施工中</button></h3>
+        <h3>
+            父函数&emsp;
+            <button type="button" id="search-parent">自动搜寻父函数 - 施工中</button>
+        </h3>
         <h3>关联项</h3>
+        <h3>系列</h3>
         <h3>函数内容</h3>
         <div class="code-container">
             <code id="content">${code}</code>
@@ -145,43 +162,85 @@
     <script>
         // 元素布局
         const vscode = acquireVsCodeApi();
-        const noteArea = document.getElementById('note-area');
-        const noteEditBtn = document.getElementById('note-edit');
+        const myTureValue = "${fullname}";
+        const debug_mode = ${debug};
         // 当前是否处于编辑模式
         let noteIsEditing = false;
         let relateIsEditing = false;
+        // 各列表有多长
+        let childListSize = 0;
         // 将原始注释修改为显示型
         function noteTurntoView() {
             var currentNote = document.getElementById('note').textContent;
-            noteArea.innerHTML = `<code id='note'>${currentNote}</code>`;
+            document.getElementById('note-area').innerHTML = `<code id='note'>${currentNote}</code>`;
             noteIsEditing = false;
         }
         // 切换到编辑模式
         function noteSwitchToEdit() {
             var currentNote = document.getElementById('note').textContent;
-            noteArea.innerHTML = `<textarea id="note">${currentNote}</textarea>`;
-            noteEditBtn.textContent = '保存';
-            noteEditBtn.classList.add('save');
+            document.getElementById('note-area').innerHTML = `<textarea id="note">${currentNote}</textarea>`;
+            document.getElementById('note-edit').textContent = '保存';
+            document.getElementById('note-edit').classList.add('save');
             noteIsEditing = true;
             document.getElementById('note').focus();
         }
         // 切换到查看模式
         function noteSwitchToView() {
             var currentNote = document.getElementById('note').value;
-            noteArea.innerHTML = `<code id='note'>${currentNote}</code>`;
-            noteEditBtn.textContent = '编辑';
-            noteEditBtn.classList.remove('save');
+            document.getElementById('note-area').innerHTML = `<code id='note'>${currentNote}</code>`;
+            document.getElementById('note-edit').textContent = '编辑';
+            document.getElementById('note-edit').classList.remove('save');
             noteIsEditing = false;
             vscode.postMessage({"cmd":"change-note", "name":"${document}", "note":currentNote});
         }
-        // 拷贝当前文档名
-        function copy_my_fullname() {
+        // 拷贝当前文档真名
+        function copyMyTrueValue() {
             navigator.clipboard.writeText("${fullname}");
         }
+        // 在列表项受编辑时，删除按钮自动转化为更新按钮
+        function onListItemEdit(me) {
+            const array = me.split("-");
+            if (array.length != 3) {
+                test_log(me + "不是一个正常的三段式列表项");
+                document.getElementById(me).classList.add('error');
+                return;
+            } else {
+                if (document.getElementById(me).classList.contains('error')) {
+                    document.getElementById(me).classList.remove('error');
+                }
+                if (document.getElementById(array[0] + "-button-" + array[2]).textContent == "删除") {
+                    document.getElementById(array[0] + "-button-" + array[2]).textContent = '更新';
+                }
+            }
+        }
+        // 列表项后的按钮被点击时，会将当前项 删除/修改/更新/接纳
+        function onListButtonClick(me) {
+            try {
+                var cmd;
+                const array = me.id.split("-");
+                if (array.length != 3) {
+                    test_log(me.id + "不是一个正常的三段式列表项");
+                    return;
+                }
+                var key = document.getElementById(array[0] + "-key-" + array[2]).value;
+                var value = document.getElementById(array[0] + "-value-" + array[2]).value;
+                var note = document.getElementById(array[0] + "-note-" + array[2]).value;
+                if (me.textContent == "新增") {cmd = "add";}
+                else if (me.textContent == "删除") {cmd = "del";}
+                else if (me.textContent == "更新") {cmd = "edit";}
+                else {test_log("[error]未能识别" + me.id + "的内容"); return;}
+
+                vscode.postMessage({"cmd":array[0] + "-" + cmd, "key":key, "value":value, "note":note, "id":parseInt(array[2]), me:myTureValue});
+            } catch (error) {
+                test_log(error);
+            }
+
+        }
         // 布置关联项列表的一项
-        function createListItem(element) {
+        function createListItem(element, target, id) {
             const liContainer = document.createElement('div');
             liContainer.className = 'edit-item';
+            liContainer.id = "childList-" + id.toString();
             const li = document.createElement('li');
             if (relateIsEditing) {
                 // 名称 真名 注释
@@ -189,70 +248,111 @@
                 const textEditor2 = document.createElement('textarea');
                 const textEditor3 = document.createElement('textarea');
                 const button = document.createElement('button');
-                // textEditor1.
-                if (Object.keys(element).length > 0) {
-                    textEditor1.innerHTML = element.key;
-                    textEditor2.innerHTML = element.value;
-                    textEditor3.innerHTML = element.note;
-                    button.textContent = '删除';
-                } else {
-                    button.textContent = '新增';
-                }
+                textEditor1.innerHTML = element["key"];
+                textEditor2.innerHTML = element["value"];
+                textEditor3.innerHTML = element["note"];
+                if (id.toString() == childListSize) { button.textContent = "新增"; } else { button.textContent = "删除"; }
+                textEditor1.id = "childList-key-" + id.toString();
+                textEditor2.id = "childList-value-" + id.toString();
+                textEditor3.id = "childList-note-" + id.toString();
+                button.id = "childList-button-" + id.toString();
+                textEditor1.addEventListener('input', () => onListItemEdit(textEditor1.id));
+                textEditor2.addEventListener('input', () => onListItemEdit(textEditor2.id));
+                textEditor3.addEventListener('input', () => onListItemEdit(textEditor3.id));
+                button.addEventListener('click', () => onListButtonClick(button));
                 liContainer.appendChild(textEditor1);
                 liContainer.appendChild(textEditor2);
                 liContainer.appendChild(textEditor3);
-                // 这里后续将填写按钮的点击事件
                 liContainer.appendChild(button);
             } else {
                 const keyLink = document.createElement('a');
-                keyLink.textContent = element.key;
+                keyLink.textContent = element["key"];
                 const text = document.createElement('label');
-                text.innerHTML = '&emsp;' + element.note;
+                text.innerHTML = '&emsp;' + element["note"];
                 liContainer.appendChild(keyLink);
                 liContainer.appendChild(text);
                 keyLink.addEventListener('click', () => {
                     // 发送消息到VSCode插件
                     vscode.postMessage({
                         "cmd":"jump-to",
-                        "target": element.value
+                        "target": element["value"]
                     });
                 });
             }
             li.appendChild(liContainer);
             return li;
         }
-        // 布置关联项列表
-        function render_relation_list(containerId, data) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = '';
-            // 仅在编辑模式下，有自动搜索子函数的选项
-            if (relateIsEditing) {
-                const button = document.createElement('button');
-                button.textContent = "自动搜寻子函数";
-                container.appendChild(button);
-            }
-            data.forEach(element => {
-                const listItem = createListItem(element);
-                container.appendChild(listItem);
-            });
-            // 仅在编辑模式下，会生成一个空选项允许用户填入
-            if (relateIsEditing) {
-                const listItem = createListItem({});
-                container.appendChild(listItem);
+
+        // 更新关联列表
+        function flushRelationList(list, target) {
+            try {
+                const container = document.getElementById(target);
+                container.innerHTML = '';
+                // 在编辑模式下，有自动搜索子函数的选项
+                if (relateIsEditing) {
+                    const button = document.createElement('button');
+                    button.textContent = "自动搜索子函数";
+                    container.appendChild(button);
+                }
+                // list是一个数组，但是被作为了object处理
+                childListSize = Object.keys(list).length;
+                for (let key in list) {
+                    const listItem = createListItem(list[key], target, key);
+                    container.appendChild(listItem);
+                }
+                if (relateIsEditing) {
+                    container.appendChild(createListItem({"key":"", "value":"", "note":""}, target, childListSize));
+                }
+            } catch (error) {
+                test_log(error);
             }
         }
-        const child_list = [${child_list}];
+
+        function test_log(text) {
+            if (debug_mode == false) {
+                return;
+            }
+            const area = document.getElementById('test-area');
+            area.innerHTML = area.innerHTML + text + "<br>";
+        }
+
+        function flush_test_log() {
+            const area = document.getElementById('test-area');
+            area.innerHTML = "";
+        }
+
+        // 处理来自VSCode插件的消息
+        window.addEventListener('message', event => {
+            const message = event.data;
+            switch (message["cmd"]) {
+                // 刷新子函数
+                case 'flush-child':
+                    flushRelationList(message["data"], "child_list");
+                    break;
+                default:
+                    test_log("接收到未知cmd" + message["cmd"]);
+            }
+        })
+
         // [TOP]
         document.getElementById('note-edit').addEventListener('click', function() {
             if (noteIsEditing) {noteSwitchToView();} else {noteSwitchToEdit();}
         });
-        document.getElementById('copy-me').addEventListener('click', copy_my_fullname);
+        document.getElementById('copy-me').addEventListener('click', copyMyTrueValue);
         document.getElementById('edit-child').addEventListener('click', function() {
             if (relateIsEditing) {relateIsEditing = false;} else {relateIsEditing = true;}
-            vscode.postMessage({"cmd":"test", "msg":"editing child" + relateIsEditing});
-            render_relation_list('child_list', child_list);
+            vscode.postMessage({"cmd":"query-child", "msg":myTureValue});
         })
+        vscode.postMessage({"cmd":"query-child", "msg":myTureValue});
+        document.getElementById('clear-test-area').addEventListener('click', function() {
+            document.getElementById('test-area').innerHTML = "";
+        })
+        document.getElementById('goto-me').addEventListener('click', function() {
+            vscode.postMessage({"cmd":"jump-to", "target":myTureValue});
+        });
+        document.getElementById('my-file').addEventListener('click', function() {
+            vscode.postMessage({"cmd":"my-file", "target":myTureValue});
+        });
         noteTurntoView();
-        render_relation_list('child_list', child_list);
     </script>
 </html>
