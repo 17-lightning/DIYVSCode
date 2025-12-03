@@ -175,6 +175,7 @@ function DIY_log_in_relation(document : vscode.TextDocument, type : string) : Ar
     return [];
 }
 
+// 这里输入的target是需要有.md后缀的
 async function DIY_show_function_document(context : vscode.ExtensionContext, target : string) {
     try {
         let lineid : number = 0;
@@ -195,7 +196,7 @@ async function DIY_show_function_document(context : vscode.ExtensionContext, tar
         const panel = vscode.window.createWebviewPanel(
             'testWebView',
             document.lineAt(0).text.substring(2),
-            vscode.ViewColumn.Beside,
+            vscode.ViewColumn.Two,
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
@@ -382,6 +383,64 @@ async function DIY_book_update_note(filepath : string, note : string)
     })
 }
 
+function convert_relation(input : string) : string {
+    if (input == 'childList') {
+        return 'parentList';
+    }
+    if (input == 'parentList') {
+        return 'childList';
+    }
+    return input;
+}
+
+async function DIY_book_add_relation(me : string, key : string, value : string, note : string, type : string, update : boolean) {
+    try {
+        Box.debug("[ltn] DIY_book_add_relation 开始");
+        let filepath = path.join(await get_DIY_library(), me + ".md");
+        // 从这里开始改用fs吧
+        let contentStr = fs.readFileSync(filepath).toString();
+        let line = contentStr.split("\n");
+        let result = line[0];
+        let target = "";
+        let flag = 0;
+        let this_value;
+        if (type == "childList") target = "子函数";
+        if (type == "parentList") target = "父函数";
+        if (type == "relateList") target = "相关项";
+        Box.debug("正在向[" + filepath + "的[## " + target + "]" + update ? "更新" : "追加" + "[" + key + "](./" + value + ".md):" + note);
+        for (let lineid = 1; lineid < line.length; lineid++) {
+            if (line[lineid].startsWith("## " + target)) {
+                flag = 1;
+            } else if (line[lineid][0] == "#") {
+                if (flag == 1) {
+                    result = result + "\n" + "[" + key + "](./" + value + ".md):" + note;
+                    flag = -1;
+                }
+            } else if (flag == 1) {
+                if (line[lineid][0] == '[') {
+                    try {
+                        let me = line[lineid];
+                        this_value = me.substring(me.search("]") + 4, me.search("\:") - 4);
+                        if (this_value == value) {
+                            if (update) {
+                                line[lineid] = "[" + key + "](./" + value + ".md):" + note;
+                            }
+                            flag = -1;
+                        }
+                    } catch (error) {
+                        Box.debug(error.toString());
+                    }
+                }
+            }
+            result = result + "\n" + line[lineid];
+        }
+        Box.debug("预计向[" + filepath + "]写入:\n" + result);
+        fs.writeFile(filepath, result, (err) => {console.log(err);});
+    } catch (error) {
+        Box.debug(error.toString());
+    }
+}
+
 // 判决目标是否为列表操作
 async function DIY_book_relation_edit(panel : vscode.WebviewPanel, message : {cmd:string, key:string, value:string, note:string, id:number, me:string}) : Promise<boolean> {
     try {
@@ -422,6 +481,8 @@ async function DIY_book_relation_edit(panel : vscode.WebviewPanel, message : {cm
                         if (fs.existsSync(path.join(await get_DIY_library(), message.value + ".md"))) {
                             content = content + "\n" + "[" + message.key + "](./" + message.value + ".md):" + message.note;
                             panel.webview.postMessage({"cmd":message.cmd, "id":message.id, "res":"PASS"});
+                            // 增加子函数/父函数/关联函数时，还需要向对方文档也刷新联系
+                            DIY_book_add_relation(message.value, message.me.substring(message.me.indexOf("+") + 1), message.me, "", convert_relation(array[0]), false);
                         } else {
                             panel.webview.postMessage({"cmd":message.cmd, "id":message.id, "res":"FAIL"});
                         }
@@ -517,6 +578,8 @@ async function DIY_book_html_handler(context : vscode.ExtensionContext, panel : 
         } else if (message.cmd == "goto-doc") {
             let document = await vscode.workspace.openTextDocument(path.join(await get_DIY_library(), message.target + ".md"));
             vscode.window.showTextDocument(document);
+        } else if (message.cmd == "goto-html") {
+            DIY_show_function_document(context, message.target + ".md");
         } else if (await DIY_book_relation_edit(panel, message)) { // 判别这是不是一个 child/parent/relateList - add/del/edit
             console.log("完成列表处理");
         } else {

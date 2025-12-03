@@ -258,6 +258,7 @@
                 textEditor2.innerHTML = element["value"];
                 textEditor3.innerHTML = element["note"];
                 if (id.toString() == childListSize) { button.textContent = "新增"; } else { button.textContent = "删除"; }
+                if ("tbd" in element) { button.textContent = "新增"; } // 自动搜索的子函数需要确认才可进入
                 textEditor1.id = "childList-key-" + id.toString();
                 textEditor2.id = "childList-value-" + id.toString();
                 textEditor3.id = "childList-note-" + id.toString();
@@ -280,7 +281,7 @@
                 keyLink.addEventListener('click', () => {
                     // 发送消息到VSCode插件
                     vscode.postMessage({
-                        "cmd":"jump-to",
+                        "cmd":"goto-html",
                         "target": element["value"]
                     });
                 });
@@ -298,7 +299,13 @@
                 if (relateIsEditing) {
                     const button = document.createElement('button');
                     button.textContent = "自动搜索子函数";
+                    button.addEventListener('click', function() {
+                        vscode.postMessage({"cmd":"search-child", "me":myTureValue});
+                    })
                     container.appendChild(button);
+                    var p = document.createElement('p');
+                    // p.innerHTML = "暂不支持在网页上调整列表顺序，请点击【原文】按钮在源文件中修改";
+                    container.appendChild(p);
                 }
                 // list是一个数组，但是被作为了object处理
                 childListSize = Object.keys(list).length;
@@ -360,9 +367,10 @@
                     document.getElementById(array[0] + "-button-" + id.toString()).textContent = "删除";
                 } else if (array[1] == "add") {
                     document.getElementById(array[0] + "-button-" + id.toString()).textContent = "删除";
-                    childListSize = childListSize + 1;
-                    // document.getElementById(array[0]).appendChild(createListItem({"key":"", "value":"", "note":""}, "childList", childListSize));
-                    document.getElementById(array[0]).appendChild(createListItem({"key":"", "value":"", "note":""}, "childList", childListSize));
+                    if (id == childListSize) {
+                        childListSize = childListSize + 1;
+                        document.getElementById(array[0]).appendChild(createListItem({"key":"", "value":"", "note":""}, "childList", childListSize));
+                    }
                 }
                 return true;
             } catch (error) {
