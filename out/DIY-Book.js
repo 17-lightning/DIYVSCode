@@ -547,7 +547,7 @@ function DIY_book_html_handler(context, panel, message) {
                 Box.debug("预计跳转" + filepath + " + " + target);
                 DIY_goto_target(path.join(yield Box.get_first_workspace(), filepath), target);
             }
-            else if (message.cmd == "my-file") {
+            else if (message.cmd == "goto-doc") {
                 let document = yield vscode.workspace.openTextDocument(path.join(yield get_DIY_library(), message.target + ".md"));
                 vscode.window.showTextDocument(document);
             }

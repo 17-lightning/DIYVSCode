@@ -61,7 +61,7 @@
       {
         "title": "object",
         "properties": {
-          "diyvscode.DIYLibrary": {
+          "diyvscode.DIY-library": {
             "type": "string",
             "default": "",
             "description": "指定DIY字典的归档路径"

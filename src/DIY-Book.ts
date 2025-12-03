@@ -514,7 +514,7 @@ async function DIY_book_html_handler(context : vscode.ExtensionContext, panel : 
             let target = document.lineAt(0).text.substring(2);  // 文档的第一行永远是`# 函数名`
             Box.debug("预计跳转" + filepath + " + " + target);
             DIY_goto_target(path.join(await Box.get_first_workspace(), filepath), target);
-        } else if (message.cmd == "my-file") {
+        } else if (message.cmd == "goto-doc") {
             let document = await vscode.workspace.openTextDocument(path.join(await get_DIY_library(), message.target + ".md"));
             vscode.window.showTextDocument(document);
         } else if (await DIY_book_relation_edit(panel, message)) { // 判别这是不是一个 child/parent/relateList - add/del/edit

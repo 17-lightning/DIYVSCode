@@ -117,6 +117,11 @@
             border-color: red;
         }
 
+        /* 红色按钮标记 */
+        .button-error {
+            background-color: red;
+        }
+
     </style>
     <body>
         <h2>
@@ -144,7 +149,7 @@
                 子函数&emsp;
                 <button type="button" id="edit-child">编辑</button>
             </h3>
-            <ul id="child_list">
+            <ul id="childList">
                 <!-- 通过RenderList动态生成 -->
             </ul>
         </div>
@@ -242,6 +247,7 @@
             liContainer.className = 'edit-item';
             liContainer.id = "childList-" + id.toString();
             const li = document.createElement('li');
+            li.id = "childList-li-" + id.toString();
             if (relateIsEditing) {
                 // 名称 真名 注释
                 const textEditor1 = document.createElement('textarea'); 
@@ -321,13 +327,60 @@
             area.innerHTML = "";
         }
 
+        // 处理来自VSCode插件的列表操作反馈消息，有操作时返回true，否则返回false
+        function onListOperationFeedback(message) {
+            try {
+                var cmd = message["cmd"];
+                var id = message["id"];
+                var res = message["res"];
+                var array = cmd.split("-");
+                if (array.length != 2) {
+                    return false;
+                }
+                if (array[0] != "childList" && array[0] != "parentList" && array[0] != "relateList") {
+                    return false;
+                }
+                if (array[1] != "add" && array[1] != "del" && array[1] != "edit") {
+                    return false;
+                }
+                var button = document.getElementById(array[0] + "-button-" + id.toString());
+                if (res == "FAIL") {
+                    button.classList.add('button-error');
+                    return true;
+                } else {
+                    if (button.classList.contains("button-error")) {
+                        button.classList.remove('button-error');
+                    }
+                }
+                
+                if (array[1] == "del") {
+                    document.getElementById(array[0] + "-li-" + id.toString()).remove();
+                } else if (array[1] == "edit") {
+                    // 更新成功时只是简单的设置按钮内容为删除而已
+                    document.getElementById(array[0] + "-button-" + id.toString()).textContent = "删除";
+                } else if (array[1] == "add") {
+                    document.getElementById(array[0] + "-button-" + id.toString()).textContent = "删除";
+                    childListSize = childListSize + 1;
+                    // document.getElementById(array[0]).appendChild(createListItem({"key":"", "value":"", "note":""}, "childList", childListSize));
+                    document.getElementById(array[0]).appendChild(createListItem({"key":"", "value":"", "note":""}, "childList", childListSize));
+                }
+                return true;
+            } catch (error) {
+                test_log(error);
+            }
+            return false;
+        }
+
         // 处理来自VSCode插件的消息
         window.addEventListener('message', event => {
             const message = event.data;
+            if (onListOperationFeedback(message)) {
+                return;
+            }
             switch (message["cmd"]) {
                 // 刷新子函数
                 case 'flush-child':
-                    flushRelationList(message["data"], "child_list");
+                    flushRelationList(message["data"], "childList");
                     break;
                 default:
                     test_log("接收到未知cmd" + message["cmd"]);
@@ -351,7 +404,7 @@
             vscode.postMessage({"cmd":"jump-to", "target":myTureValue});
         });
         document.getElementById('my-file').addEventListener('click', function() {
-            vscode.postMessage({"cmd":"my-file", "target":myTureValue});
+            vscode.postMessage({"cmd":"goto-doc", "target":myTureValue});
         });
         noteTurntoView();
     </script>
