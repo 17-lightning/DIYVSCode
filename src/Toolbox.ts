@@ -117,12 +117,38 @@ export function load_text_file(filepath : string) : string {
 }
 
 // debug日志会记录在这里
-export function debug(target : string) {
+export function debug(target : any) {
     if (is_debug()) {
-        fs.appendFile("D:\\PP\\temp\\log.txt", target + "\n", (err) => {
-            if (err) throw err;
+        var temp = String(target);
+        if (error instanceof Error) {
+            temp = target.message;
+        } else if (typeof target == 'string') {
+            temp = target;
+        }
+        fs.appendFile("D:\\PP\\temp\\log.txt", temp + "\n", (err) => {
             console.log(err);
+            if (err) throw err;
         });
+    }
+}
+
+// debug日志加强版，有一个type，可以在这里调整那些type类型的日志会进行记录
+export function debug_log(type : string, target : any) {
+    var debug_list = [
+        "FBox",
+        "2"
+    ];
+    if (is_debug() && debug_list.includes(type)) {
+        var temp = String(target);
+        if (error instanceof Error) {
+            temp = target.message;
+        } else if (typeof target == "string") {
+            temp = target;
+        }
+        fs.appendFile("D:\\PP\\temp\\log.txt", temp + "\n", (err) => {
+            console.log(err);
+            if (err) throw err;
+        })
     }
 }
 
@@ -192,4 +218,20 @@ export function replace_variable(input: string, variables: Map<string, string>):
 export function is_debug()
 {
     return true;
+}
+
+
+// 是否为函数定义
+async function is_function_definition(content : string[], lineid : number, target : string) : Promise<boolean> {
+    try {
+        var line = content[lineid];
+        // 要求函数定义必须顶格写，前面不能有 空格 制表符 #
+        if (line[0] == '\t' || line[0] == '\n' || line[0] == ' ' || line[0] == '#') {
+            return false;
+        }
+        
+    } catch (error) {
+        debug(error.toString());
+    }
+    return false;
 }

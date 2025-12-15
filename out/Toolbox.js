@@ -17,6 +17,7 @@ exports.get_first_workspace = get_first_workspace;
 exports.get_vscode_config = get_vscode_config;
 exports.load_text_file = load_text_file;
 exports.debug = debug;
+exports.debug_log = debug_log;
 exports.sep_debug = sep_debug;
 exports.clean_debug_log = clean_debug_log;
 exports.get_current_filepath = get_current_filepath;
@@ -26,6 +27,7 @@ exports.is_debug = is_debug;
 const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
+const console_1 = require("console");
 /**
  * 向VSCode窗口输出一条信息（右下角的那种）
  * @param text
@@ -148,10 +150,38 @@ function load_text_file(filepath) {
 // debug日志会记录在这里
 function debug(target) {
     if (is_debug()) {
-        fs.appendFile("D:\\PP\\temp\\log.txt", target + "\n", (err) => {
+        var temp = String(target);
+        if (console_1.error instanceof Error) {
+            temp = target.message;
+        }
+        else if (typeof target == 'string') {
+            temp = target;
+        }
+        fs.appendFile("D:\\PP\\temp\\log.txt", temp + "\n", (err) => {
+            console.log(err);
             if (err)
                 throw err;
+        });
+    }
+}
+// debug日志加强版，有一个type，可以在这里调整那些type类型的日志会进行记录
+function debug_log(type, target) {
+    var debug_list = [
+        "FBox",
+        "2"
+    ];
+    if (is_debug() && debug_list.includes(type)) {
+        var temp = String(target);
+        if (console_1.error instanceof Error) {
+            temp = target.message;
+        }
+        else if (typeof target == "string") {
+            temp = target;
+        }
+        fs.appendFile("D:\\PP\\temp\\log.txt", temp + "\n", (err) => {
             console.log(err);
+            if (err)
+                throw err;
         });
     }
 }
@@ -219,5 +249,21 @@ function replace_variable(input, variables) {
 // debug模式开关，出厂关闭(提交到github前关闭跑一次编译，确保github上去的js是正常的)
 function is_debug() {
     return true;
+}
+// 是否为函数定义
+function is_function_definition(content, lineid, target) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            var line = content[lineid];
+            // 要求函数定义必须顶格写，前面不能有 空格 制表符 #
+            if (line[0] == '\t' || line[0] == '\n' || line[0] == ' ' || line[0] == '#') {
+                return false;
+            }
+        }
+        catch (error) {
+            debug(error.toString());
+        }
+        return false;
+    });
 }
 //# sourceMappingURL=Toolbox.js.map

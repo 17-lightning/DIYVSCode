@@ -15,10 +15,17 @@ const vscode = require("vscode");
 const Box = require("./Toolbox");
 const path = require("path");
 const fs = require("fs");
+const FBox = require("./FileBox");
 // 跳转到当前选中元素的对应文档（如果没有选中元素，将跳转到当前文件的文档）（如果没有当前文档 —— 不会执行跳转）
 // 如果不存在这个文档，会跳转到[文档生成]页面
 function DIY_book(context) {
     return __awaiter(this, void 0, void 0, function* () {
+        // [ltn] 测试用
+        // try {
+        //     FBox.Develop_test();
+        // } catch (error) {
+        //     Box.debug(error);
+        // }
         try {
             const editor = vscode.window.activeTextEditor;
             let type = "unknown";
@@ -549,12 +556,12 @@ function DIY_book_relation_edit(panel, message) {
             }
             Box.debug("预期写入" + content);
             fs.writeFile(filepath, content, (err) => {
-                Box.debug(err.toString());
+                Box.debug(err);
             });
             return true;
         }
         catch (error) {
-            Box.debug(error.toString());
+            Box.debug(error);
         }
         return false;
     });
@@ -576,6 +583,33 @@ function DIY_goto_target(filepath, target) {
             viewColumn: vscode.ViewColumn.One,
             selection: new vscode.Range(new vscode.Position(targetline, 0), new vscode.Position(targetline, 0))
         });
+    });
+}
+// 自动搜索子函数
+function DIY_search_child(panel, me) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            var filepath = me.split("+")[0];
+            var funcname = me.split("+")[1];
+            var CFile = FBox.CFileParser.create(FBox.turnTransAddrToComplete(filepath));
+            if (CFile == null) {
+                throw "读取[" + Box.get_first_workspace() + "\\" + filepath + "]失败";
+            }
+            var result = CFile.getChildFunction(funcname, undefined);
+            Box.debug(filepath + "里的" + funcname + "有[" + result.length + "]个子函数");
+            for (var i = 0; i < result.length; i++) {
+                Box.debug("[" + i + "] : key[" + result[i].key + "] value[" + result[i].value + "] note[" + result[i].note + "]");
+            }
+            let document = path.join(yield get_DIY_library(), me + ".md");
+            let msg = DIY_log_in_relation(yield vscode.workspace.openTextDocument(document), "子函数");
+            for (var i = 0; i < result.length; i++) {
+                msg.push({ key: result[i].key, value: result[i].value, note: result[i].note, tbd: "1" });
+            }
+            panel.webview.postMessage({ "cmd": "flush-child", "data": msg });
+        }
+        catch (error) {
+            Box.debug(error);
+        }
     });
 }
 /**
@@ -621,6 +655,10 @@ function DIY_book_html_handler(context, panel, message) {
             }
             else if (message.cmd == "goto-html") {
                 DIY_show_function_document(context, message.target + ".md");
+            }
+            else if (message.cmd == "search-child") {
+                // 自动搜寻子函数
+                DIY_search_child(panel, message.target);
             }
             else if (yield DIY_book_relation_edit(panel, message)) { // 判别这是不是一个 child/parent/relateList - add/del/edit
                 console.log("完成列表处理");

@@ -300,8 +300,8 @@
                     const button = document.createElement('button');
                     button.textContent = "自动搜索子函数";
                     button.addEventListener('click', function() {
-                        vscode.postMessage({"cmd":"search-child", "me":myTureValue});
-                    })
+                        vscode.postMessage({"cmd":"search-child", "target":myTureValue});
+                    });
                     container.appendChild(button);
                     var p = document.createElement('p');
                     // p.innerHTML = "暂不支持在网页上调整列表顺序，请点击【原文】按钮在源文件中修改";
