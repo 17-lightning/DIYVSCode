@@ -245,6 +245,84 @@ async function DIY_create_current_function_document(context : vscode.ExtensionCo
     }
 }
 
+function getPluginPath(context : vscode.ExtensionContext) : string {
+    return "d:\\PP\\DIYVSCode";
+    // return context.extensionPath;
+}
+
+// 将地址改为标准型。即给--转成\，然后判断若文件不以:(盘符开头)，认为这是一个内部路径，给他加上前缀
+function turnAddrToStandard(input : string) : string {
+    input = input.replace(new RegExp("--", "g"), "\\");
+    if (input.length >= 2 && input[1] == ':') {
+        // 空
+    } else {
+        input = Box.get_first_workspace() + "\\" + input;
+    }
+    return input;
+}
+
+// 将地址改为自定义模式
+function turnAddrToCustom(input : string) : string {
+    if (input.length >= 2 && input[1] == ":") {
+        input = input.substring(Box.get_first_workspace().length + 1); // +1是为了吃掉\\
+    }
+    input = input.replace(new RegExp("\\\\", "g"), "--");
+    input = input.replace(new RegExp("/", "g"), "--");
+    return input;
+}
+
+// 啊你不能多态啊
+async function DIY_create_function_document_2(context : vscode.ExtensionContext, target : string) : Promise<boolean> {
+    if (!target.includes("+")) {
+        return false;
+    }
+    let filepath = target.split("+")[0];
+    let funcname = target.split("+")[1];
+    return DIY_create_function_document(context, filepath, funcname);
+}
+
+// 生成目标文档，将返回创建成功与否。以后再说重构
+async function DIY_create_function_document(context : vscode.ExtensionContext, filepath : string, funcname : string) : Promise<boolean> {
+    try {
+        let realpath = filepath;
+        realpath = turnAddrToStandard(realpath);
+        if (!fs.existsSync(realpath)) {
+            return false;
+        }
+        let CFile = FBox.CFileParser.create(realpath);
+        if (CFile == null) {
+            return false;
+        }
+        CFile.flushFunctionList();
+        let flag = 0;
+        for (var i = 0; i < CFile.function_list.length; i++) {
+            if (CFile.function_list[i].name == funcname) {
+                flag = 1;
+                break;
+            }
+        }
+        if (flag == 0) {
+            Box.debug("没有在[" + filepath + "]中找到[" + funcname + "]");
+            return false;
+        }
+        let content = Box.load_text_file(path.join(getPluginPath(context), "asset/function_template.md"));
+        let variables = new Map<string, string>();
+        variables.set("name", funcname);
+        variables.set("file", realpath.substring(Box.get_first_workspace().length + 1));
+        content = Box.replace_variable(content, variables);
+        realpath = turnAddrToCustom(realpath);
+        realpath = path.join(await get_DIY_library(), realpath + "+" + funcname +".md");
+        // Box.debug("[ltn] 即将向[" + realpath + "写入[" + content + "]");
+        fs.writeFile(realpath, content, (err) => {
+            console.log(err);
+        });
+        return true;
+    } catch (error) {
+        Box.debug(error);
+    }
+    return false;
+}
+
 // 查询文档库路径
 // 1. 如果当前工作区下存在`DIY-config.md`，并且其中有`DIY-library`，采用之
 // 2. 如果配置文件中存在`DIY-library`，采用之
@@ -448,8 +526,12 @@ async function DIY_book_add_relation(me : string, key : string, value : string, 
     }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // 判决目标是否为列表操作
-async function DIY_book_relation_edit(panel : vscode.WebviewPanel, message : {cmd:string, key:string, value:string, note:string, id:number, me:string}) : Promise<boolean> {
+async function DIY_book_relation_edit(context : vscode.ExtensionContext, panel : vscode.WebviewPanel, message : {cmd:string, key:string, value:string, note:string, id:number, me:string}) : Promise<boolean> {
     try {
         let array = message.cmd.split("-");
         let target = "";
@@ -489,6 +571,11 @@ async function DIY_book_relation_edit(panel : vscode.WebviewPanel, message : {cm
                             content = content + "\n" + "[" + message.key + "](./" + message.value + ".md):" + message.note;
                             panel.webview.postMessage({"cmd":message.cmd, "id":message.id, "res":"PASS"});
                             // 增加子函数/父函数/关联函数时，还需要向对方文档也刷新联系
+                            DIY_book_add_relation(message.value, message.me.substring(message.me.indexOf("+") + 1), message.me, "", convert_relation(array[0]), false);
+                        } else if (await DIY_create_function_document_2(context, message.value)) { // 尝试自动注册该函数
+                            content = content + "\n" + "[" + message.key + "](./" + message.value + ".md):" + message.note;
+                            panel.webview.postMessage({"cmd":message.cmd, "id":message.id, "res":"PASS"});
+                            await sleep(100);
                             DIY_book_add_relation(message.value, message.me.substring(message.me.indexOf("+") + 1), message.me, "", convert_relation(array[0]), false);
                         } else {
                             panel.webview.postMessage({"cmd":message.cmd, "id":message.id, "res":"FAIL"});
@@ -555,9 +642,12 @@ async function DIY_search_child(panel : vscode.WebviewPanel, me : string) {
         var filepath = me.split("+")[0];
         var funcname = me.split("+")[1];
         var CFile = FBox.CFileParser.create(FBox.turnTransAddrToComplete(filepath));
+        var flag = 0;
         if (CFile == null) {
             throw "读取[" + Box.get_first_workspace() + "\\" + filepath + "]失败";
         }
+        // 跑路前不一定能补完这块，再说吧
+        FBox.CFileParser.setDefaultIgnoreFunction(CFile.ignore_list);
         var result = CFile.getChildFunction(funcname, undefined);
         Box.debug(filepath + "里的" + funcname + "有[" + result.length + "]个子函数");
         for (var i = 0; i < result.length; i++) {
@@ -566,7 +656,17 @@ async function DIY_search_child(panel : vscode.WebviewPanel, me : string) {
         let document = path.join(await get_DIY_library(), me + ".md");
         let msg = DIY_log_in_relation(await vscode.workspace.openTextDocument(document), "子函数");
         for (var i = 0; i < result.length; i++) {
-            msg.push({key:result[i].key, value:result[i].value, note:result[i].note, tbd:"1"})
+            // 将key不重复的项目加入子函数中
+            flag = 0;
+            for (var j = 0; j < msg.length; j++) {
+                if (msg[j].key == result[i].key) {
+                    flag = 1;
+                    break;
+                }
+            }
+            if (flag == 0) {
+                msg.push({key:result[i].key, value:result[i].value, note:result[i].note, tbd:"1"});
+            }
         }
         panel.webview.postMessage({"cmd":"flush-child", "data":msg});
     } catch (error) {
@@ -601,6 +701,13 @@ async function DIY_book_html_handler(context : vscode.ExtensionContext, panel : 
                 Box.debug("打开[" + path.join(await get_DIY_library(), message.msg) + "] 失败");
             }
             panel.webview.postMessage({"cmd":"flush-child", "data":DIY_log_in_relation(document, "子函数")});
+        } else if (message.cmd == "query-parent") { // 查询父函数列表
+            let document = path.join(await get_DIY_library(), message.msg + ".md");
+            document = await vscode.workspace.openTextDocument(document);
+            if (document == undefined) {
+                Box.debug("打开[" + path.join(await get_DIY_library(), message.msg) + "] 失败");
+            }
+            panel.webview.postMessage({"cmd":"flush-parent", "data":DIY_log_in_relation(document, "父函数")});
         } else if (message.cmd == "jump-to") {
             let document = await vscode.workspace.openTextDocument(path.join(await get_DIY_library(), message.target + ".md"));
             let filepath = DIY_log_in_filepath(document);
@@ -615,7 +722,7 @@ async function DIY_book_html_handler(context : vscode.ExtensionContext, panel : 
         } else if (message.cmd == "search-child") {
             // 自动搜寻子函数
             DIY_search_child(panel, message.target);
-        } else if (await DIY_book_relation_edit(panel, message)) { // 判别这是不是一个 child/parent/relateList - add/del/edit
+        } else if (await DIY_book_relation_edit(context, panel, message)) { // 判别这是不是一个 child/parent/relateList - add/del/edit
             console.log("完成列表处理");
         } else {
             console.log("未知消息");

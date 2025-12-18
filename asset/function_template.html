@@ -153,10 +153,15 @@
                 <!-- 通过RenderList动态生成 -->
             </ul>
         </div>
-        <h3>
-            父函数&emsp;
-            <button type="button" id="search-parent">自动搜寻父函数 - 施工中</button>
-        </h3>
+        <div class="relation">
+            <h3>
+                父函数&emsp;
+                <button type="button" id="edit-parent">编辑</button>
+            </h3>
+            <ul id="parentList">
+                <!-- 通过RenderList动态生成 -->
+            </ul>
+        </div>
         <h3>关联项</h3>
         <h3>系列</h3>
         <h3>函数内容</h3>
@@ -173,7 +178,10 @@
         let noteIsEditing = false;
         let relateIsEditing = false;
         // 各列表有多长
-        let childListSize = 0;
+        let ListSize = {
+            "childList" : 0,
+            "parentList" : 0
+        };
         // 将原始注释修改为显示型
         function noteTurntoView() {
             var currentNote = document.getElementById('note').textContent;
@@ -245,9 +253,9 @@
         function createListItem(element, target, id) {
             const liContainer = document.createElement('div');
             liContainer.className = 'edit-item';
-            liContainer.id = "childList-" + id.toString();
+            liContainer.id = target + "-" + id.toString();
             const li = document.createElement('li');
-            li.id = "childList-li-" + id.toString();
+            li.id = target + "-li-" + id.toString();
             if (relateIsEditing) {
                 // 名称 真名 注释
                 const textEditor1 = document.createElement('textarea'); 
@@ -257,12 +265,12 @@
                 textEditor1.innerHTML = element["key"];
                 textEditor2.innerHTML = element["value"];
                 textEditor3.innerHTML = element["note"];
-                if (id.toString() == childListSize) { button.textContent = "新增"; } else { button.textContent = "删除"; }
+                if (id.toString() == ListSize[target]) { button.textContent = "新增"; } else { button.textContent = "删除"; }
                 if ("tbd" in element) { button.textContent = "新增"; } // 自动搜索的子函数需要确认才可进入
-                textEditor1.id = "childList-key-" + id.toString();
-                textEditor2.id = "childList-value-" + id.toString();
-                textEditor3.id = "childList-note-" + id.toString();
-                button.id = "childList-button-" + id.toString();
+                textEditor1.id = target + "-key-" + id.toString();
+                textEditor2.id = target + "-value-" + id.toString();
+                textEditor3.id = target + "-note-" + id.toString();
+                button.id = target + "-button-" + id.toString();
                 textEditor1.addEventListener('input', () => onListItemEdit(textEditor1.id));
                 textEditor2.addEventListener('input', () => onListItemEdit(textEditor2.id));
                 textEditor3.addEventListener('input', () => onListItemEdit(textEditor3.id));
@@ -293,10 +301,10 @@
         // 更新关联列表
         function flushRelationList(list, target) {
             try {
-                const container = document.getElementById(target);
+                var container = document.getElementById(target);
                 container.innerHTML = '';
                 // 在编辑模式下，有自动搜索子函数的选项
-                if (relateIsEditing) {
+                if (relateIsEditing && target == "childList") {
                     const button = document.createElement('button');
                     button.textContent = "自动搜索子函数";
                     button.addEventListener('click', function() {
@@ -308,13 +316,13 @@
                     container.appendChild(p);
                 }
                 // list是一个数组，但是被作为了object处理
-                childListSize = Object.keys(list).length;
+                ListSize[target] = Object.keys(list).length;
                 for (let key in list) {
-                    const listItem = createListItem(list[key], target, key);
+                    var listItem = createListItem(list[key], target, key);
                     container.appendChild(listItem);
                 }
                 if (relateIsEditing) {
-                    container.appendChild(createListItem({"key":"", "value":"", "note":""}, target, childListSize));
+                    container.appendChild(createListItem({"key":"", "value":"", "note":""}, target, ListSize[target]));
                 }
             } catch (error) {
                 test_log(error);
@@ -367,9 +375,9 @@
                     document.getElementById(array[0] + "-button-" + id.toString()).textContent = "删除";
                 } else if (array[1] == "add") {
                     document.getElementById(array[0] + "-button-" + id.toString()).textContent = "删除";
-                    if (id == childListSize) {
-                        childListSize = childListSize + 1;
-                        document.getElementById(array[0]).appendChild(createListItem({"key":"", "value":"", "note":""}, "childList", childListSize));
+                    if (id == ListSize[array[0]]) {
+                        ListSize[array[0]] = ListSize[array[0]] + 1;
+                        document.getElementById(array[0]).appendChild(createListItem({"key":"", "value":"", "note":""}, "childList", ListSize[array[0]]));
                     }
                 }
                 return true;
@@ -390,6 +398,9 @@
                 case 'flush-child':
                     flushRelationList(message["data"], "childList");
                     break;
+                case 'flush-parent':
+                    flushRelationList(message["data"], "parentList");
+                    break;
                 default:
                     test_log("接收到未知cmd" + message["cmd"]);
             }
@@ -405,6 +416,7 @@
             vscode.postMessage({"cmd":"query-child", "msg":myTureValue});
         })
         vscode.postMessage({"cmd":"query-child", "msg":myTureValue});
+        vscode.postMessage({"cmd":"query-parent", "msg":myTureValue});
         document.getElementById('clear-test-area').addEventListener('click', function() {
             document.getElementById('test-area').innerHTML = "";
         })

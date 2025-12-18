@@ -235,3 +235,9 @@ async function is_function_definition(content : string[], lineid : number, targe
     }
     return false;
 }
+
+export function print_object(input : object) {
+    for (let key in input) {
+        debug(key + ":" + input[key]);
+    }
+}

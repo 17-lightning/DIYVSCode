@@ -219,6 +219,7 @@ class CFileParser extends FileParser {
     constructor(filepath) {
         super(filepath);
         this.function_list = [];
+        this.ignore_list = [];
     }
     static create(filepath) {
         try {
@@ -464,7 +465,7 @@ class CFileParser extends FileParser {
                 big_bra_layer = big_bra_layer - 1;
             }
             else if (current == '(') {
-                if (CFileParser.is_symbol(last_symbol)) {
+                if (CFileParser.is_symbol(last_symbol) && !this.isIgnoreFunction(last_symbol)) {
                     if (searchPath != undefined) {
                         // 有指定搜索路径时，要去目标路径下寻找内容
                         throw "暂未实现在目标路径下自动搜索子函数的功能";
@@ -487,6 +488,24 @@ class CFileParser extends FileParser {
             last_symbol = current;
         }
         return result;
+    }
+    // 设置默认的无视函数
+    static setDefaultIgnoreFunction(ignore_list) {
+        ignore_list.push("if");
+        ignore_list.push("for");
+        ignore_list.push("while");
+        ignore_list.push("printf");
+        ignore_list.push("strlen");
+        ignore_list.push("strcmp");
+        ignore_list.push("strcat");
+        ignore_list.push("memcpy");
+        ignore_list.push("memcpy_s");
+        ignore_list.push("memset");
+        ignore_list.push("memset_s");
+    }
+    // 判断是否为需要无视的函数
+    isIgnoreFunction(input) {
+        return this.ignore_list.includes(input);
     }
 }
 exports.CFileParser = CFileParser;

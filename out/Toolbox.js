@@ -24,6 +24,7 @@ exports.get_current_filepath = get_current_filepath;
 exports.get_current_keyword = get_current_keyword;
 exports.replace_variable = replace_variable;
 exports.is_debug = is_debug;
+exports.print_object = print_object;
 const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
@@ -265,5 +266,10 @@ function is_function_definition(content, lineid, target) {
         }
         return false;
     });
+}
+function print_object(input) {
+    for (let key in input) {
+        debug(key + ":" + input[key]);
+    }
 }
 //# sourceMappingURL=Toolbox.js.map
